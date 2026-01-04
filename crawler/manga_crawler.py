@@ -271,21 +271,42 @@ class MangaCrawler:
         with sync_playwright() as p:
             context = self._get_browser_context(p)
             page = context.new_page()
+            # Enable Stealth Mode
+            from playwright_stealth import stealth_sync
+            stealth_sync(page)
+            
             page.goto(chapter_url, wait_until="domcontentloaded", timeout=60000)
             
-            # DEBUG: Kiểm tra xem có bị chặn không
-            page_title = page.title()
-            print(f"  📄 Page Title: {page_title}")
+            # BYPASS LOGIC 2.0
+            max_retries = 3
+            for attempt in range(max_retries):
+                page_title = page.title()
+                print(f"  📄 [{attempt+1}/{max_retries}] Page Title: {page_title}")
+                
+                if "Just a moment" in page_title or "Attention Required" in page_title or "Cloudflare" in page_title:
+                    print("  🛡️ Detect Cloudflare! Waiting for redirect...")
+                    page.wait_for_timeout(5000)
+                    
+                    # Thử click vào bất kỳ iframe/checkbox nào nếu có (basic attempt)
+                    try:
+                         frames = page.frames
+                         for frame in frames:
+                             if "challenge" in frame.url:
+                                 print("  🖱️ Found Challenge Frame, trying to interact...")
+                                 frame.click("body", timeout=2000)
+                    except: pass
+                    
+                    page.wait_for_timeout(5000)
+                else:
+                    # Đã vào được trang chính
+                    break
             
-            if "Just a moment" in page_title or "Attention Required" in page_title:
-                print("  ⚠️ Bị Cloudflare chặn! Đang thử bypass nhẹ...")
-                page.wait_for_timeout(5000)
+            # Cuộn trang chậm hơn để giả lập người dùng
+            print("📜 Đang kích hoạt lazy loading...")
+            for i in range(10): # Tăng số lần cuộn
+                page.mouse.wheel(0, 1000) # Dùng mouse wheel thay vì scrollTo cho giống người
+                page.wait_for_timeout(1000)
             
-            # Cuộn trang để kích hoạt lazy loading
-            print("📜 Đang load ảnh...")
-            for i in range(5):
-                page.evaluate(f"window.scrollTo(0, {(i+1) * 2000})")
-                page.wait_for_timeout(1000) # Tăng thời gian chờ
             page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             page.wait_for_timeout(3000)
             
