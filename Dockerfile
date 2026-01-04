@@ -47,18 +47,18 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p crawler/browser_profile
 
-# Set environment variables (override with Railway env vars)
+# Copy entrypoint script
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
+
+# Environment variables
 ENV PYTHONUNBUFFERED=1
-ENV FLASK_APP=web/app.py
-ENV FLASK_ENV=production
+# Railway injects PORT, but we set a default just in case
+ENV PORT=5000
 
-# Expose port (not strictly necessary for Railway but good practice)
-EXPOSE $PORT
-
-# Health check - tăng timeout để app kịp khởi động
+# Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=30s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-5000}/ || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT}/ || exit 1
 
-# Run the application with gunicorn
-# Railway tự động inject biến PORT
-CMD gunicorn --bind 0.0.0.0:${PORT:-5000} --workers 2 --timeout 120 web.app:app
+# Run the application
+ENTRYPOINT ["./entrypoint.sh"]
