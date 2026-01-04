@@ -248,15 +248,48 @@ class Database:
         return result.deleted_count
     
     def get_all_manga_stats(self):
-        """Lấy thống kê tất cả manga"""
+        """Lấy thống kê tất cả manga (Optimized)"""
+        # 1. Lấy danh sách manga
         mangas = list(self.db.mangas.find({}).sort("updated_at", -1))
         
+        if not mangas:
+            return []
+            
+        manga_ids = [m.get("id") for m in mangas if m.get("id")]
+        
+        # 2. Lấy thông tin details (chỉ lấy field chapters để đếm)
+        details_cursor = self.db.manga_details.find(
+            {"id": {"$in": manga_ids}},
+            {"id": 1, "chapters": 1}
+        )
+        # Map manga_id -> total_chapters
+        details_map = {
+            doc["id"]: len(doc.get("chapters", [])) 
+            for doc in details_cursor
+        }
+        
+        # 3. Đếm số chapter đã tải từ chapter_images
+        # Dùng aggregation để group by manga_id và count
+        pipeline = [
+            {"$match": {"manga_id": {"$in": manga_ids}}},
+            {"$group": {
+                "_id": "$manga_id",
+                "count": {"$sum": 1}
+            }}
+        ]
+        downloads_cursor = self.db.chapter_images.aggregate(pipeline)
+        # Map manga_id -> downloaded_count
+        downloads_map = {
+            doc["_id"]: doc["count"] 
+            for doc in downloads_cursor
+        }
+        
+        # 4. Merge data
         stats = []
         for manga in mangas:
             manga_id = manga.get("id")
-            detail = self.get_manga_detail(manga_id)
-            downloaded = self.db.chapter_images.count_documents({"manga_id": manga_id})
-            total = len(detail.get("chapters", [])) if detail else 0
+            total = details_map.get(manga_id, 0)
+            downloaded = downloads_map.get(manga_id, 0)
             
             stats.append({
                 **manga,

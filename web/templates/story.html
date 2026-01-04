@@ -18,14 +18,14 @@
         <span class="logo-icon">📚</span>
         <span class="logo-text hide-mobile">MANGA<span class="highlight">HEAVEN</span></span>
       </a>
-      
+
       <button class="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
-      
+
       <div class="nav-links" id="navLinks">
         <a href="/" class="nav-link">🏠 <span>Trang chủ</span></a>
         <a href="/search" class="nav-link">🔍 <span>Tìm kiếm</span></a>
       </div>
-      
+
       <div class="nav-actions">
         {% if current_user.is_authenticated %}
         <div class="user-dropdown">
@@ -188,6 +188,9 @@
     </div>
   </footer>
 
+  <!-- Mobile Menu Overlay -->
+  <div class="mobile-overlay" id="mobileOverlay"></div>
+
   <!-- Loading Overlay -->
   <div id="loadingOverlay" class="loading-overlay hidden">
     <div class="loading-content">
@@ -265,7 +268,8 @@
       totalCount.textContent = '{{ story.total_chapters }}';
 
       let downloaded = 0;
-      let total = {{ story.total_chapters }};
+      let total = {{ story.total_chapters }
+    };
 
     try {
       // Sử dụng SSE để nhận progress realtime
@@ -344,31 +348,56 @@
       }
     }
     checkDownloadStatus();
-    
-    // User dropdown menu toggle
-    function toggleUserMenu() {
-      const dropdown = document.getElementById('userDropdown');
-      dropdown.classList.toggle('show');
-    }
-    
-    // Mobile menu toggle
+
+    // User dropdown menu toggle & Mobile Menu
+
+    // User dropdown menu toggle & Mobile Menu
+    const navLinks = document.getElementById('navLinks');
+    const mobileOverlay = document.getElementById('mobileOverlay');
+    const userDropdown = document.getElementById('userDropdown');
+
     function toggleMobileMenu() {
-      const navLinks = document.getElementById('navLinks');
-      navLinks.classList.toggle('show');
-    }
-    
-    // Close menus when clicking outside
-    document.addEventListener('click', function(e) {
-      const userDropdown = document.getElementById('userDropdown');
-      const navLinks = document.getElementById('navLinks');
-      
-      if (userDropdown && !e.target.closest('.user-dropdown')) {
-        userDropdown.classList.remove('show');
+      const isOpen = navLinks.classList.contains('show');
+      if (isOpen) {
+        closeMobileMenu();
+      } else {
+        navLinks.classList.add('show');
+        mobileOverlay.classList.add('show');
+        document.body.style.overflow = 'hidden';
       }
-      if (navLinks && !e.target.closest('.nav-links') && !e.target.closest('.mobile-menu-btn')) {
-        navLinks.classList.remove('show');
+    }
+
+    function closeMobileMenu() {
+      navLinks.classList.remove('show');
+      mobileOverlay.classList.remove('show');
+      document.body.style.overflow = '';
+    }
+
+    function toggleUserMenu() {
+      userDropdown.classList.toggle('show');
+      if (window.innerWidth <= 768) {
+        mobileOverlay.classList.toggle('show', userDropdown.classList.contains('show'));
+      }
+    }
+
+    // Click outside
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest('.user-dropdown') && userDropdown?.classList.contains('show')) {
+        userDropdown.classList.remove('show');
+        if (window.innerWidth <= 768 && !navLinks.classList.contains('show')) {
+          mobileOverlay.classList.remove('show');
+        }
       }
     });
+
+    mobileOverlay?.addEventListener('click', function () {
+      closeMobileMenu();
+      userDropdown?.classList.remove('show');
+    });
+
+    // Check download status logic (keep this somewhere? It was above menu logic)
+    // I need to be careful with where I split.
+
   </script>
 </body>
 

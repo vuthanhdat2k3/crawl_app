@@ -18,10 +18,10 @@
                 <span class="logo-icon">📚</span>
                 <span class="logo-text hide-mobile">MANGA<span class="highlight">HEAVEN</span></span>
             </a>
-            
+
             <!-- Mobile menu button -->
             <button class="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
-            
+
             <div class="nav-links" id="navLinks">
                 <a href="/" class="nav-link active">🏠 <span>Trang chủ</span></a>
                 <a href="/search" class="nav-link">🔍 <span>Tìm kiếm</span></a>
@@ -29,13 +29,13 @@
                 <a href="/admin" class="nav-link">📊 <span>Admin</span></a>
                 {% endif %}
             </div>
-            
+
             <div class="nav-actions">
                 <form action="/search" method="GET" class="search-form hide-mobile">
                     <input type="text" name="q" placeholder="Tìm truyện..." class="search-input">
                     <button type="submit" class="search-btn">🔍</button>
                 </form>
-                
+
                 {% if current_user.is_authenticated %}
                 <!-- User Menu -->
                 <div class="user-dropdown">
@@ -157,6 +157,9 @@
         </div>
     </footer>
 
+    <!-- Mobile Menu Overlay -->
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+
     <!-- Loading Overlay -->
     <div id="loadingOverlay" class="loading-overlay hidden">
         <div class="loading-content">
@@ -166,8 +169,8 @@
     </div>
 
     <script>
-        // Refresh/Crawl functionality
-        document.getElementById('refreshBtn')?.addEventListener('click', async function () {
+        // Update functionality
+        async function refreshData() {
             const overlay = document.getElementById('loadingOverlay');
             overlay.classList.remove('hidden');
 
@@ -186,13 +189,11 @@
             } finally {
                 overlay.classList.add('hidden');
             }
-        });
+        }
 
-        document.getElementById('crawlBtn')?.addEventListener('click', async function () {
-            document.getElementById('refreshBtn')?.click();
-        });
+        document.getElementById('crawlBtn')?.addEventListener('click', refreshData);
 
-        // Lazy load images with intersection observer
+        // Lazy load images
         const lazyImages = document.querySelectorAll('img[loading="lazy"]');
         if ('IntersectionObserver' in window) {
             const observer = new IntersectionObserver((entries) => {
@@ -206,26 +207,50 @@
             lazyImages.forEach(img => observer.observe(img));
         }
 
-        // User dropdown menu
-        function toggleUserMenu() {
-            const dropdown = document.getElementById('userDropdown');
-            dropdown.classList.toggle('show');
-        }
+        // Toggle UI functions
+        const navLinks = document.getElementById('navLinks');
+        const mobileOverlay = document.getElementById('mobileOverlay');
+        const userDropdown = document.getElementById('userDropdown');
 
-        // Mobile menu
         function toggleMobileMenu() {
-            const navLinks = document.getElementById('navLinks');
-            navLinks.classList.toggle('show');
+            const isOpen = navLinks.classList.contains('show');
+            if (isOpen) {
+                closeMobileMenu();
+            } else {
+                navLinks.classList.add('show');
+                mobileOverlay.classList.add('show');
+                document.body.style.overflow = 'hidden'; // Prevent scrolling
+            }
         }
 
-        // Close dropdowns when clicking outside
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.user-dropdown')) {
-                document.getElementById('userDropdown')?.classList.remove('show');
+        function closeMobileMenu() {
+            navLinks.classList.remove('show');
+            mobileOverlay.classList.remove('show');
+            document.body.style.overflow = '';
+        }
+
+        function toggleUserMenu() {
+            userDropdown.classList.toggle('show');
+            if (window.innerWidth <= 768) {
+                mobileOverlay.classList.toggle('show', userDropdown.classList.contains('show'));
             }
-            if (!e.target.closest('.nav-links') && !e.target.closest('.mobile-menu-btn')) {
-                document.getElementById('navLinks')?.classList.remove('show');
+        }
+
+        // Click Event Handlers
+        document.addEventListener('click', function (e) {
+            // Close User Dropdown
+            if (!e.target.closest('.user-dropdown') && userDropdown?.classList.contains('show')) {
+                userDropdown.classList.remove('show');
+                if (window.innerWidth <= 768 && !navLinks.classList.contains('show')) {
+                    mobileOverlay.classList.remove('show');
+                }
             }
+        });
+
+        // Overlay click to close everything
+        mobileOverlay?.addEventListener('click', function () {
+            closeMobileMenu();
+            userDropdown?.classList.remove('show');
         });
     </script>
 </body>

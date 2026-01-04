@@ -140,6 +140,9 @@
         </div>
     </footer>
 
+    <!-- Mobile Menu Overlay -->
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+
     <!-- Loading Overlay -->
     <div id="loadingOverlay" class="loading-overlay hidden">
         <div class="loading-content">
@@ -149,6 +152,10 @@
     </div>
 
     <script>
+        // ... (preserving normalizeToSlug and crawl listeners - not replacing them, target below) ...
+        
+        // Wait, I need to be careful. I'll replace from line 269 downwards, assuming structure is stable.
+    </script>
         // Hàm chuẩn hóa tên truyện thành slug
         function normalizeToSlug(text) {
             // Bảng chuyển đổi tiếng Việt
@@ -266,29 +273,48 @@
             }
         });
         
-        // User dropdown menu toggle
-        function toggleUserMenu() {
-            const dropdown = document.getElementById('userDropdown');
-            dropdown.classList.toggle('show');
-        }
-        
-        // Mobile menu toggle
+        // User dropdown menu toggle & Mobile Menu
+        const navLinks = document.getElementById('navLinks');
+        const mobileOverlay = document.getElementById('mobileOverlay');
+        const userDropdown = document.getElementById('userDropdown');
+
         function toggleMobileMenu() {
-            const navLinks = document.getElementById('navLinks');
-            navLinks.classList.toggle('show');
+            const isOpen = navLinks.classList.contains('show');
+            if (isOpen) {
+                closeMobileMenu();
+            } else {
+                navLinks.classList.add('show');
+                mobileOverlay.classList.add('show');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function closeMobileMenu() {
+            navLinks.classList.remove('show');
+            mobileOverlay.classList.remove('show');
+            document.body.style.overflow = '';
+        }
+
+        function toggleUserMenu() {
+            userDropdown.classList.toggle('show');
+            if (window.innerWidth <= 768) {
+                mobileOverlay.classList.toggle('show', userDropdown.classList.contains('show'));
+            }
         }
         
-        // Close menus when clicking outside
+        // Click outside
         document.addEventListener('click', function(e) {
-            const userDropdown = document.getElementById('userDropdown');
-            const navLinks = document.getElementById('navLinks');
-            
-            if (userDropdown && !e.target.closest('.user-dropdown')) {
+            if (!e.target.closest('.user-dropdown') && userDropdown?.classList.contains('show')) {
                 userDropdown.classList.remove('show');
+                if (window.innerWidth <= 768 && !navLinks.classList.contains('show')) {
+                    mobileOverlay.classList.remove('show');
+                }
             }
-            if (navLinks && !e.target.closest('.nav-links') && !e.target.closest('.mobile-menu-btn')) {
-                navLinks.classList.remove('show');
-            }
+        });
+        
+        mobileOverlay?.addEventListener('click', function() {
+            closeMobileMenu();
+            userDropdown?.classList.remove('show');
         });
     </script>
 </body>
