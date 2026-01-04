@@ -140,6 +140,32 @@ class MangaCrawler:
         url = f"{self.base_url}/truyen-tranh/{manga_id}"
         print(f"📖 Đang crawl chi tiết truyện: {manga_id}")
         
+        # Ưu tiên dùng FlareSolverr trên production
+        if self.use_flaresolverr:
+            data = self._crawl_story_via_flaresolverr(manga_id, url, download_cover)
+            if data and data.get('title'):
+                return data
+            print("⚠️ FlareSolverr thất bại, thử Playwright...")
+        
+        # Fallback: Sử dụng Playwright
+        return self._crawl_story_via_playwright(manga_id, url, download_cover)
+    
+    def _crawl_story_via_flaresolverr(self, manga_id, url, download_cover=True):
+        """Crawl story detail qua FlareSolverr"""
+        print(f"🔓 Đang bypass Cloudflare qua FlareSolverr...")
+        
+        result = flaresolverr.get_page(url)
+        if not result or not result.get("html"):
+            print("❌ FlareSolverr không thể lấy được trang")
+            return None
+        
+        html = result["html"]
+        soup = BeautifulSoup(html, "lxml")
+        
+        return self._parse_story_detail(soup, manga_id, download_cover)
+    
+    def _crawl_story_via_playwright(self, manga_id, url, download_cover=True):
+        """Crawl story detail qua Playwright"""
         with sync_playwright() as p:
             context = self._get_browser_context(p)
             page = context.new_page()
@@ -151,122 +177,154 @@ class MangaCrawler:
             content = page.content()
             soup = BeautifulSoup(content, "lxml")
             
-            # Lấy thông tin truyện
-            title = ""
-            title_el = soup.select_one("h1.title-detail")
-            if title_el:
-                title = title_el.get_text(strip=True)
-            
-            description = ""
-            desc_el = soup.select_one(".detail-content p")
-            if desc_el:
-                description = desc_el.get_text(strip=True)
-            
-            # Lấy và upload thumbnail
+            # Upload cover nếu dùng Playwright
             thumbnail_original = ""
-            thumbnail = ""
             thumb_el = soup.select_one(".col-image img")
             if thumb_el:
                 thumbnail_original = thumb_el.get('data-original') or thumb_el.get('data-src') or thumb_el.get('src', '')
             
+            thumbnail = thumbnail_original
             if download_cover and thumbnail_original:
                 thumbnail = self.upload_cover(page, manga_id, thumbnail_original)
-            else:
-                thumbnail = thumbnail_original
             
-            # Lấy thể loại
-            genres = []
-            genre_els = soup.select(".kind.row .col-xs-8 a")
-            for g in genre_els:
-                genres.append(g.get_text(strip=True))
+            data = self._parse_story_detail(soup, manga_id, download_cover, thumbnail, thumbnail_original)
             
-            # Lấy tác giả
-            author = ""
-            author_el = soup.select_one(".author.row .col-xs-8")
-            if author_el:
-                author = author_el.get_text(strip=True)
+            context.close()
+            return data
+    
+    def _parse_story_detail(self, soup, manga_id, download_cover=True, thumbnail=None, thumbnail_original=None):
+        """Parse HTML để lấy thông tin truyện"""
+        print("📜 Đang phân tích chapters...")
+        
+        # Lấy thông tin truyện
+        title = ""
+        title_el = soup.select_one("h1.title-detail")
+        if title_el:
+            title = title_el.get_text(strip=True)
+        
+        description = ""
+        desc_el = soup.select_one(".detail-content p")
+        if desc_el:
+            description = desc_el.get_text(strip=True)
+        
+        # Lấy thumbnail nếu chưa có
+        if not thumbnail_original:
+            thumb_el = soup.select_one(".col-image img")
+            if thumb_el:
+                thumbnail_original = thumb_el.get('data-original') or thumb_el.get('data-src') or thumb_el.get('src', '')
+            thumbnail = thumbnail_original
+        
+        # Lấy thể loại
+        genres = []
+        genre_els = soup.select(".kind.row .col-xs-8 a")
+        for g in genre_els:
+            genres.append(g.get_text(strip=True))
+        
+        # Lấy tác giả
+        author = ""
+        author_el = soup.select_one(".author.row .col-xs-8")
+        if author_el:
+            author = author_el.get_text(strip=True)
+        
+        # Lấy trạng thái
+        status = ""
+        status_el = soup.select_one(".status.row .col-xs-8")
+        if status_el:
+            status = status_el.get_text(strip=True)
+        
+        # Phân tích pattern chapters
+        visible_rows = soup.select("#nt_listchapter ul li.row:not(.heading)")
+        
+        chapters = []
+        chapter_pattern = None
+        max_chapter = 0
+        min_chapter = float('inf')
+        
+        for row in visible_rows:
+            link = row.select_one("a")
+            if link:
+                chap_url = link.get('href', '')
+                
+                url_match = re.search(r'[/-](chuong|chap|chapter)[/-]?(\d+)', chap_url, re.IGNORECASE)
+                if url_match:
+                    chapter_num = int(url_match.group(2))
+                    prefix = url_match.group(1).lower()
+                    
+                    if not chapter_pattern:
+                        base_url = re.sub(r'[/-](chuong|chap|chapter)[/-]?\d+.*$', '', chap_url, flags=re.IGNORECASE)
+                        chapter_pattern = {
+                            'base_url': base_url,
+                            'prefix': prefix,
+                            'separator': '-' if f'{prefix}-' in chap_url.lower() else ''
+                        }
+                    
+                    max_chapter = max(max_chapter, chapter_num)
+                    min_chapter = min(min_chapter, chapter_num)
+        
+        print(f"  📊 Phân tích: Chapter {min_chapter} → {max_chapter}")
+        
+        # Generate tất cả chapters
+        if chapter_pattern and max_chapter > 0:
+            for i in range(max_chapter, -1, -1):
+                chap_id = f"{chapter_pattern['prefix']}{chapter_pattern['separator']}{i}"
+                chap_url = f"{chapter_pattern['base_url']}/{chap_id}"
+                
+                if not chap_url.startswith('http'):
+                    chap_url = self.base_url + chap_url
+                
+                chapters.append({
+                    "id": chap_id,
+                    "name": f"Chapter {i}",
+                    "url": chap_url
+                })
             
-            # Phân tích pattern chapters
-            visible_rows = soup.select("#nt_listchapter ul li.row:not(.heading)")
-            
-            chapters = []
-            chapter_pattern = None
-            max_chapter = 0
-            min_chapter = float('inf')
-            
+            print(f"  ✅ Đã generate {len(chapters)} chapters!")
+        else:
+            # Fallback
             for row in visible_rows:
                 link = row.select_one("a")
                 if link:
                     chap_url = link.get('href', '')
-                    
-                    url_match = re.search(r'[/-](chuong|chap|chapter)[/-]?(\d+)', chap_url, re.IGNORECASE)
-                    if url_match:
-                        chapter_num = int(url_match.group(2))
-                        prefix = url_match.group(1).lower()
-                        
-                        if not chapter_pattern:
-                            base_url = re.sub(r'[/-](chuong|chap|chapter)[/-]?\d+.*$', '', chap_url, flags=re.IGNORECASE)
-                            chapter_pattern = {
-                                'base_url': base_url,
-                                'prefix': prefix,
-                                'separator': '-' if f'{prefix}-' in chap_url.lower() else ''
-                            }
-                        
-                        max_chapter = max(max_chapter, chapter_num)
-                        min_chapter = min(min_chapter, chapter_num)
-            
-            print(f"  📊 Phân tích: Chapter {min_chapter} → {max_chapter}")
-            
-            # Generate tất cả chapters
-            if chapter_pattern and max_chapter > 0:
-                for i in range(max_chapter, -1, -1):
-                    chap_id = f"{chapter_pattern['prefix']}{chapter_pattern['separator']}{i}"
-                    chap_url = f"{chapter_pattern['base_url']}/{chap_id}"
-                    
+                    chap_id = chap_url.split('/')[-1] if chap_url else ''
                     if not chap_url.startswith('http'):
                         chap_url = self.base_url + chap_url
-                    
                     chapters.append({
                         "id": chap_id,
-                        "name": f"Chapter {i}",
+                        "name": link.get_text(strip=True),
                         "url": chap_url
                     })
-                
-                print(f"  ✅ Đã generate {len(chapters)} chapters!")
-            else:
-                # Fallback
-                for row in visible_rows:
-                    link = row.select_one("a")
-                    if link:
-                        chap_url = link.get('href', '')
-                        chap_id = chap_url.split('/')[-1] if chap_url else ''
-                        if not chap_url.startswith('http'):
-                            chap_url = self.base_url + chap_url
-                        chapters.append({
-                            "id": chap_id,
-                            "name": link.get_text(strip=True),
-                            "url": chap_url
-                        })
-            
-            # Chuẩn bị dữ liệu
-            data = {
-                "id": manga_id,
-                "title": title,
-                "description": description,
-                "thumbnail": thumbnail,
-                "thumbnail_original": thumbnail_original,
-                "author": author,
-                "genres": genres,
-                "chapters": chapters,
-                "total_chapters": len(chapters)
-            }
-            
-            # Lưu vào MongoDB
-            db.save_manga_detail(data)
-            print(f"☁️ Đã lưu '{title}' với {len(chapters)} chapters vào MongoDB")
-            
-            context.close()
-            return data
+        
+        # Chuẩn bị dữ liệu
+        data = {
+            "id": manga_id,
+            "title": title,
+            "description": description,
+            "thumbnail": thumbnail,
+            "thumbnail_original": thumbnail_original,
+            "author": author,
+            "status": status,
+            "genres": genres,
+            "chapters": chapters,
+            "total_chapters": len(chapters)
+        }
+        
+        # Lưu vào MongoDB (cả manga_details và mangas)
+        db.save_manga_detail(data)
+        
+        # Thêm vào danh sách manga trên trang chủ
+        manga_item = {
+            "id": manga_id,
+            "title": title,
+            "url": f"{self.base_url}/truyen-tranh/{manga_id}",
+            "thumbnail": thumbnail,
+            "thumbnail_original": thumbnail_original,
+            "latest_chapter": chapters[0]["name"] if chapters else ""
+        }
+        db.save_manga_list([manga_item])
+        
+        print(f"☁️ Đã lưu '{title}' với {len(chapters)} chapters vào MongoDB")
+        
+        return data
 
     def _download_chapter_via_flaresolverr(self, manga_id, chapter_id, chapter_url):
         """Download chapter sử dụng FlareSolverr để bypass Cloudflare"""
