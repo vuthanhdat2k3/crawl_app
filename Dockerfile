@@ -52,12 +52,13 @@ ENV PYTHONUNBUFFERED=1
 ENV FLASK_APP=web/app.py
 ENV FLASK_ENV=production
 
-# Expose port
-EXPOSE 5000
+# Expose port (not strictly necessary for Railway but good practice)
+EXPOSE $PORT
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:5000/ || exit 1
+# Health check - tăng timeout để app kịp khởi động
+HEALTHCHECK --interval=30s --timeout=30s --start-period=30s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-5000}/ || exit 1
 
-# Run the application with gunicorn for production
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "web.app:app"]
+# Run the application with gunicorn
+# Railway tự động inject biến PORT
+CMD gunicorn --bind 0.0.0.0:${PORT:-5000} --workers 2 --timeout 120 web.app:app
