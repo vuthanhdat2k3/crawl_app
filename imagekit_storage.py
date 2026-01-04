@@ -8,6 +8,7 @@ import requests
 import os
 import sys
 import base64
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Import config
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -87,7 +88,8 @@ class ImageStorage:
             response = requests.post(
                 self.UPLOAD_URL,
                 data=data,
-                auth=self._get_auth()
+                auth=self._get_auth(),
+                timeout=60
             )
             
             if response.status_code == 200:
@@ -127,7 +129,8 @@ class ImageStorage:
             response = requests.post(
                 self.UPLOAD_URL,
                 data=data,
-                auth=self._get_auth()
+                auth=self._get_auth(),
+                timeout=60
             )
             
             if response.status_code == 200:
@@ -140,6 +143,39 @@ class ImageStorage:
         except Exception as e:
             print(f"❌ Lỗi upload {file_name}: {e}")
             return None
+    
+    def upload_batch_from_bytes(self, items, folder_path, max_workers=5):
+        """
+        Upload nhiều ảnh song song
+        
+        Args:
+            items: List of (idx, file_bytes) tuples
+            folder_path: Folder trên ImageKit
+            max_workers: Số thread song song
+        
+        Returns:
+            List các URL đã upload (theo thứ tự)
+        """
+        results = [None] * len(items)
+        
+        def upload_one(item):
+            idx, file_bytes = item
+            filename = f"{idx:03d}.jpg"
+            url = self.upload_from_bytes(file_bytes, folder_path, filename)
+            return idx, url
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(upload_one, item): item[0] for item in items}
+            for future in as_completed(futures):
+                try:
+                    idx, url = future.result()
+                    results[idx] = url
+                    print(f"  ☁️ [{idx+1}/{len(items)}] Uploaded")
+                except Exception as e:
+                    idx = futures[future]
+                    print(f"  ❌ [{idx+1}/{len(items)}] Failed: {e}")
+        
+        return [url for url in results if url]
     
     def upload_from_url(self, url, folder, file_name):
         """

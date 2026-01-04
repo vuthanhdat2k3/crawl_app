@@ -1,1 +1,1 @@
-web: cd web && gunicorn --bind 0.0.0.0:$PORT --workers 2 --worker-class gevent --timeout 600 --graceful-timeout 600 app:app
+web: cd web && gunicorn --bind 0.0.0.0:$PORT --workers 1 --worker-class eventlet --timeout 0 --keep-alive 120 app:app

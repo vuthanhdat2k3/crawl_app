@@ -287,9 +287,8 @@ class MangaCrawler:
             print(f"⚠️ Không tìm thấy ảnh trong chapter")
             return []
         
-        print(f"☁️ Tìm thấy {len(imgs)} ảnh. Bắt đầu upload...")
+        print(f"☁️ Tìm thấy {len(imgs)} ảnh. Bắt đầu download...")
         
-        urls = []
         folder_path = f"manga/{manga_id}/{chapter_id}"
         
         # Cập nhật cookies từ FlareSolverr vào session
@@ -299,39 +298,41 @@ class MangaCrawler:
         if result.get("user_agent"):
             self.session.headers["User-Agent"] = result["user_agent"]
         
-        for idx, img in enumerate(imgs):
-            # Thử nhiều attribute chứa link ảnh
+        # Tải tất cả ảnh trước (song song)
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
+        def download_image(item):
+            idx, img = item
             src = img.get("data-original") or img.get("data-src") or img.get("src")
-            
             if not src:
-                continue
-                
+                return None
             if "http" not in src:
                 if src.startswith("//"):
                     src = "https:" + src
                 else:
-                    continue
-            
+                    return None
             try:
-                # Tải ảnh qua requests session (đã có cookies bypass)
                 response = self.session.get(src, timeout=30)
                 if response.status_code == 200:
-                    filename = f"{idx:03d}.jpg"
-                    
-                    # Upload trực tiếp lên ImageKit
-                    url = image_storage.upload_from_bytes(
-                        response.content,
-                        folder_path,
-                        filename
-                    )
-                    
-                    if url:
-                        urls.append(url)
-                        print(f"  ☁️ [{idx+1}/{len(imgs)}] Uploaded")
-                    else:
-                        print(f"  ❌ [{idx+1}/{len(imgs)}] Upload failed")
+                    return (idx, response.content)
             except Exception as e:
-                print(f"  ❌ Lỗi ảnh {idx}: {e}")
+                print(f"  ❌ Download ảnh {idx} lỗi: {e}")
+            return None
+        
+        # Download song song
+        downloaded_items = []
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(download_image, (idx, img)): idx for idx, img in enumerate(imgs)}
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    downloaded_items.append(result)
+                    print(f"  📥 Downloaded {len(downloaded_items)}/{len(imgs)}")
+        
+        print(f"☁️ Đã tải {len(downloaded_items)} ảnh. Bắt đầu upload song song...")
+        
+        # Upload song song
+        urls = image_storage.upload_batch_from_bytes(downloaded_items, folder_path, max_workers=5)
         
         return urls
 
