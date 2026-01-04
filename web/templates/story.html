@@ -125,7 +125,8 @@
                 <p id="chapterImageProgress" style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary);">
                 </p>
               </div>
-              <p class="progress-note">⚠️ Quá trình tải có thể mất nhiều thời gian. Vui lòng không đóng trang.</p>
+              <p class="progress-note">⚠️ Quá trình tải có thể mất nhiều thời gian. Vui lòng không đóng
+                trang.</p>
             </div>
           </div>
         </div>
@@ -268,8 +269,7 @@
       totalCount.textContent = '{{ story.total_chapters }}';
 
       let downloaded = 0;
-      let total = {{ story.total_chapters }
-    };
+      let total = {{ story.total_chapters }};
 
     try {
       // Sử dụng SSE để nhận progress realtime
@@ -350,8 +350,6 @@
     checkDownloadStatus();
 
     // User dropdown menu toggle & Mobile Menu
-
-    // User dropdown menu toggle & Mobile Menu
     const navLinks = document.getElementById('navLinks');
     const mobileOverlay = document.getElementById('mobileOverlay');
     const userDropdown = document.getElementById('userDropdown');
@@ -394,9 +392,6 @@
       closeMobileMenu();
       userDropdown?.classList.remove('show');
     });
-
-    // Check download status logic (keep this somewhere? It was above menu logic)
-    // I need to be careful with where I split.
 
   </script>
 </body>
