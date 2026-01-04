@@ -2,11 +2,13 @@
 Manga Crawler - Thu thập dữ liệu từ NetTruyen
 Lưu trữ: CHỈ SỬ DỤNG CLOUD (MongoDB + ImageKit.io)
 Không sử dụng local storage
+Hỗ trợ FlareSolverr để bypass Cloudflare trên production
 """
 
 import os
 import re
 import sys
+import requests
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 
@@ -14,6 +16,7 @@ from bs4 import BeautifulSoup
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from database import db
 from imagekit_storage import image_storage
+from crawler.flaresolverr_client import flaresolverr
 
 class MangaCrawler:
     def __init__(self):
@@ -24,6 +27,16 @@ class MangaCrawler:
         db.connect()
         image_storage.connect()
         print("☁️ Cloud-Only Mode: MongoDB + ImageKit")
+        
+        # Kiểm tra FlareSolverr
+        self.use_flaresolverr = flaresolverr.check_connection()
+        
+        # Session cho requests (dùng cookies từ FlareSolverr)
+        self.session = requests.Session()
+        self.session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+            "Referer": self.base_url
+        })
 
     def _get_browser_context(self, playwright):
         """Tạo browser context với anti-bot"""
@@ -255,6 +268,73 @@ class MangaCrawler:
             context.close()
             return data
 
+    def _download_chapter_via_flaresolverr(self, manga_id, chapter_id, chapter_url):
+        """Download chapter sử dụng FlareSolverr để bypass Cloudflare"""
+        print(f"🔓 Đang bypass Cloudflare qua FlareSolverr...")
+        
+        result = flaresolverr.get_page(chapter_url)
+        if not result or not result.get("html"):
+            print("❌ FlareSolverr không thể lấy được trang")
+            return []
+        
+        html = result["html"]
+        soup = BeautifulSoup(html, "lxml")
+        
+        # Tìm tất cả ảnh chapter
+        imgs = soup.select(".reading-detail img, .page-chapter img, .reading img")
+        
+        if not imgs:
+            print(f"⚠️ Không tìm thấy ảnh trong chapter")
+            return []
+        
+        print(f"☁️ Tìm thấy {len(imgs)} ảnh. Bắt đầu upload...")
+        
+        urls = []
+        folder_path = f"manga/{manga_id}/{chapter_id}"
+        
+        # Cập nhật cookies từ FlareSolverr vào session
+        for cookie in result.get("cookies", []):
+            self.session.cookies.set(cookie["name"], cookie["value"])
+        
+        if result.get("user_agent"):
+            self.session.headers["User-Agent"] = result["user_agent"]
+        
+        for idx, img in enumerate(imgs):
+            # Thử nhiều attribute chứa link ảnh
+            src = img.get("data-original") or img.get("data-src") or img.get("src")
+            
+            if not src:
+                continue
+                
+            if "http" not in src:
+                if src.startswith("//"):
+                    src = "https:" + src
+                else:
+                    continue
+            
+            try:
+                # Tải ảnh qua requests session (đã có cookies bypass)
+                response = self.session.get(src, timeout=30)
+                if response.status_code == 200:
+                    filename = f"{idx:03d}.jpg"
+                    
+                    # Upload trực tiếp lên ImageKit
+                    url = image_storage.upload_from_bytes(
+                        response.content,
+                        folder_path,
+                        filename
+                    )
+                    
+                    if url:
+                        urls.append(url)
+                        print(f"  ☁️ [{idx+1}/{len(imgs)}] Uploaded")
+                    else:
+                        print(f"  ❌ [{idx+1}/{len(imgs)}] Upload failed")
+            except Exception as e:
+                print(f"  ❌ Lỗi ảnh {idx}: {e}")
+        
+        return urls
+
     def download_chapter_images(self, manga_id, chapter_id, chapter_url=None):
         """Tải và upload ảnh chapter lên ImageKit - LƯU URLs VÀO MONGODB"""
         if not chapter_url:
@@ -267,6 +347,31 @@ class MangaCrawler:
             return existing_urls
         
         print(f"📥 Đang tải và upload chapter: {chapter_id}")
+        
+        # Ưu tiên sử dụng FlareSolverr để bypass Cloudflare (cho production)
+        if self.use_flaresolverr:
+            urls = self._download_chapter_via_flaresolverr(manga_id, chapter_id, chapter_url)
+            if urls:
+                db.save_chapter_images(manga_id, chapter_id, urls)
+                print(f"☁️ Đã lưu {len(urls)} URLs vào MongoDB (via FlareSolverr)")
+                return urls
+            else:
+                print("⚠️ FlareSolverr thất bại, thử Playwright...")
+        
+        # Fallback: Sử dụng Playwright (hoạt động tốt trên local)
+        try:
+            urls = self._download_chapter_via_playwright(manga_id, chapter_id, chapter_url)
+            if urls:
+                db.save_chapter_images(manga_id, chapter_id, urls)
+                print(f"☁️ Đã lưu {len(urls)} URLs vào MongoDB")
+            return urls
+        except Exception as e:
+            print(f"❌ Lỗi Playwright: {e}")
+            return []
+
+    def _download_chapter_via_playwright(self, manga_id, chapter_id, chapter_url):
+        """Download chapter sử dụng Playwright (local mode)"""
+        print("🎭 Đang sử dụng Playwright...")
         
         with sync_playwright() as p:
             context = self._get_browser_context(p)
@@ -361,12 +466,6 @@ class MangaCrawler:
                     print(f"  ❌ Lỗi ảnh {idx}: {e}")
             
             context.close()
-            
-            # Lưu URLs vào MongoDB
-            if urls:
-                db.save_chapter_images(manga_id, chapter_id, urls)
-                print(f"☁️ Đã lưu {len(urls)} URLs vào MongoDB")
-            
             return urls
 
     def get_manga_list(self):
