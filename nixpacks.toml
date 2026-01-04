@@ -1,7 +1,7 @@
 # Nixpacks configuration for Railway
 
+# Let Nixpacks auto-detect Python and use its default setup
 [phases.setup]
-nixPkgs = ["python311"]
 aptPkgs = [
     "libnss3",
     "libnspr4",
@@ -27,11 +27,10 @@ aptPkgs = [
     "libglu1-mesa"
 ]
 
-[phases.install]
-cmds = [
-    "pip install -r requirements.txt",
-    "playwright install chromium"
-]
+# After default pip install, run playwright install
+[phases.build]
+cmds = ["playwright install chromium"]
 
 [start]
 cmd = "cd web && gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 app:app"
+
