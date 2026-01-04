@@ -29,7 +29,7 @@ class MangaCrawler:
         """Tạo browser context với anti-bot"""
         return playwright.chromium.launch_persistent_context(
             self.user_data_dir,
-            headless=False,
+            headless=True,
             args=["--disable-blink-features=AutomationControlled"],
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
         )

@@ -10,7 +10,7 @@ def download_chapter(url, manga_id, chap_name):
     with sync_playwright() as p:
         context = p.chromium.launch_persistent_context(
             USER_DATA_DIR, 
-            headless=False,
+            headless=True,
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
         )
         page = context.new_page()

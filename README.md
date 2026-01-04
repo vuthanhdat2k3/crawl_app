@@ -195,7 +195,7 @@ title = item.select_one("h3 a")
 ```python
 context = p.chromium.launch_persistent_context(
     USER_DATA_DIR,
-    headless=False,
+    headless=True,
     args=["--disable-blink-features=AutomationControlled"],
     user_agent="Mozilla/5.0..."
 )

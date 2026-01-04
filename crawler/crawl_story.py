@@ -7,7 +7,7 @@ STORY_URL = "https://nettruyen.me.uk/truyen-tranh/do-de-cua-ta-deu-la-dai-phan-p
 
 def crawl_story_detail(url):
     with sync_playwright() as p:
-        context = p.chromium.launch_persistent_context(USER_DATA_DIR, headless=False)
+        context = p.chromium.launch_persistent_context(USER_DATA_DIR, headless=True)
         page = context.new_page()
         page.goto(url, wait_until="domcontentloaded")
 
