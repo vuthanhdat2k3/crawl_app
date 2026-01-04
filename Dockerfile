@@ -45,6 +45,10 @@ RUN mkdir -p crawler/browser_profile
 
 # Environment
 ENV PYTHONUNBUFFERED=1
+ENV PORT=5000
 
-# Use shell form - this ensures variable expansion works
-CMD sh -c "gunicorn --bind 0.0.0.0:\${PORT:-5000} --workers 2 --timeout 120 web.app:app"
+# Expose port
+EXPOSE 5000
+
+# Run gunicorn on port 5000 - Railway will map this externally
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "web.app:app"]
