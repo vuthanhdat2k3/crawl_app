@@ -1,6 +1,5 @@
 # ==================== Manga Heaven - Dockerfile ====================
 # Deploy on Railway - Cloud Only Mode
-# Uses MongoDB Atlas + ImageKit.io
 
 FROM python:3.11-slim
 
@@ -44,11 +43,8 @@ COPY . .
 # Create directories
 RUN mkdir -p crawler/browser_profile
 
-# Make entrypoint executable and convert to Unix line endings
-RUN sed -i 's/\r$//' entrypoint.sh && chmod +x entrypoint.sh
-
 # Environment
 ENV PYTHONUNBUFFERED=1
 
-# Railway injects PORT automatically - just run the entrypoint
-CMD ["./entrypoint.sh"]
+# Use shell form - this ensures variable expansion works
+CMD sh -c "gunicorn --bind 0.0.0.0:\${PORT:-5000} --workers 2 --timeout 120 web.app:app"
