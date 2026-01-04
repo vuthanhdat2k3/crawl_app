@@ -7,21 +7,30 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for
 import os
 import sys
 
-# Thêm đường dẫn để import
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'crawler'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from manga_crawler import MangaCrawler
+# Thêm đường dẫn root để import modules
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT_DIR)
+sys.path.insert(0, os.path.join(ROOT_DIR, 'crawler'))
+
+# Import crawler
+from crawler.manga_crawler import MangaCrawler
 
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
 
 # Khởi tạo crawler (Cloud-only mode)
-crawler = MangaCrawler()
+try:
+    crawler = MangaCrawler()
+except Exception as e:
+    print(f"Error initializing crawler: {e}")
+    crawler = None
 
 
 @app.route('/')
 def index():
     """Trang chủ - Lấy từ MongoDB"""
+    if crawler is None:
+        return render_template('error.html', message="Đang khởi tạo hệ thống, vui lòng thử lại sau...")
     mangas = crawler.get_manga_list()
     return render_template('index.html', mangas=mangas, total=len(mangas))
 
