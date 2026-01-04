@@ -8,6 +8,7 @@ import os
 import sys
 import json
 import time
+import re
 
 # Thêm đường dẫn root để import modules
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -152,6 +153,8 @@ def api_download_all(manga_id):
                 story_data = crawler.crawl_story_detail(manga_id)
             
             chapters = story_data.get('chapters', [])
+            # Đảo ngược để tải từ chap đầu đến chap mới nhất
+            chapters = list(reversed(chapters))
             total = len(chapters)
             downloaded = 0
             errors = []
@@ -191,6 +194,19 @@ def api_download_status(manga_id):
     return jsonify(crawler.get_download_status(manga_id))
 
 
+@app.route('/api/check-chapter/<manga_id>/<chapter_id>')
+def api_check_chapter(manga_id, chapter_id):
+    """API: Kiểm tra chapter đã được tải chưa"""
+    from database import db
+    images = db.get_chapter_images(manga_id, chapter_id)
+    return jsonify({
+        "manga_id": manga_id,
+        "chapter_id": chapter_id,
+        "downloaded": len(images) > 0 if images else False,
+        "images_count": len(images) if images else 0
+    })
+
+
 @app.route('/api/manga/list')
 def api_manga_list():
     """API: Lấy danh sách manga từ MongoDB"""
@@ -209,16 +225,75 @@ def api_manga_detail(manga_id):
 
 # ==================== Search ====================
 
+def normalize_manga_name(name):
+    """Chuẩn hóa tên truyện thành slug URL"""
+    import unicodedata
+    # Chuyển về lowercase
+    name = name.lower().strip()
+    # Chuẩn hóa unicode (bỏ dấu tiếng Việt)
+    name = unicodedata.normalize('NFD', name)
+    name = ''.join(c for c in name if unicodedata.category(c) != 'Mn')
+    # Thay thế đ/Đ
+    name = name.replace('đ', 'd').replace('Đ', 'd')
+    # Chỉ giữ lại chữ cái, số và khoảng trắng
+    name = re.sub(r'[^a-z0-9\s]', '', name)
+    # Thay khoảng trắng thành dấu gạch ngang
+    name = re.sub(r'\s+', '-', name)
+    # Bỏ dấu gạch ngang thừa
+    name = re.sub(r'-+', '-', name)
+    name = name.strip('-')
+    return name
+
+
+@app.route('/api/crawl/url', methods=['POST'])
+def api_crawl_from_url():
+    """API: Crawl truyện từ URL đầy đủ"""
+    try:
+        data = request.get_json()
+        url = data.get('url', '').strip()
+        
+        if not url:
+            return jsonify({"success": False, "error": "URL không được để trống"}), 400
+        
+        # Lấy manga_id từ URL
+        # URL dạng: https://nettruyen.me.uk/truyen-tranh/dau-la-dai-luc-5
+        if '/truyen-tranh/' in url:
+            manga_id = url.split('/truyen-tranh/')[-1].split('/')[0].split('?')[0]
+        else:
+            manga_id = url.rstrip('/').split('/')[-1]
+        
+        if not manga_id:
+            return jsonify({"success": False, "error": "Không thể xác định ID truyện từ URL"}), 400
+        
+        # Crawl chi tiết truyện
+        story_data = crawler.crawl_story_detail(manga_id)
+        
+        if story_data:
+            return jsonify({
+                "success": True, 
+                "manga_id": manga_id,
+                "title": story_data.get('title', ''),
+                "chapters": len(story_data.get('chapters', []))
+            })
+        else:
+            return jsonify({"success": False, "error": "Không thể crawl truyện này"}), 500
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route('/search')
 def search():
-    """Trang tìm kiếm - Từ MongoDB"""
-    query = request.args.get('q', '').lower().strip()
+    """Trang tìm kiếm - Từ MongoDB, fallback sang NetTruyen"""
+    query = request.args.get('q', '').strip()
     mangas = crawler.get_manga_list()
     
     results = []
     if query:
+        query_lower = query.lower()
+        # Tìm trong database local trước
         for manga in mangas:
-            if query in manga.get('title', '').lower():
+            if query_lower in manga.get('title', '').lower():
                 results.append(manga)
     
     return render_template('search.html', query=query, results=results)

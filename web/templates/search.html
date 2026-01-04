@@ -39,11 +39,26 @@
                         🔍 Tìm kiếm
                     </button>
                 </form>
+
+                <!-- Thêm link crawl truyện mới -->
+                <div class="url-crawl-section" style="margin-top: 20px; padding: 20px; background: var(--bg-tertiary); border-radius: 12px;">
+                    <h3 style="margin-bottom: 12px;">🔗 Thêm truyện từ URL</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 12px; font-size: 14px;">
+                        Dán link truyện từ NetTruyen để thêm vào thư viện
+                    </p>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="mangaUrl" placeholder="https://nettruyen.me.uk/truyen-tranh/ten-truyen"
+                            style="flex: 1; padding: 12px 16px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary);">
+                        <button id="crawlUrlBtn" class="btn btn-primary">
+                            📥 Thêm truyện
+                        </button>
+                    </div>
+                </div>
             </div>
 
             {% if query %}
             <div class="search-results-info">
-                <p>Tìm thấy <strong>{{ total }}</strong> kết quả cho "<em>{{ query }}</em>"</p>
+                <p>Tìm thấy <strong>{{ results|length }}</strong> kết quả cho "<em>{{ query }}</em>"</p>
             </div>
             {% endif %}
 
@@ -69,8 +84,11 @@
             {% elif query %}
             <div class="empty-state">
                 <div class="empty-icon">🔍</div>
-                <h3>Không tìm thấy kết quả</h3>
-                <p>Thử tìm kiếm với từ khóa khác</p>
+                <h3>Không tìm thấy trong thư viện</h3>
+                <p>Thử tìm trên NetTruyen bằng cách nhấn nút bên dưới</p>
+                <button id="searchNetTruyenBtn" class="btn btn-primary btn-lg" style="margin-top: 16px;">
+                    🌐 Tìm trên NetTruyen
+                </button>
             </div>
             {% else %}
             <div class="search-suggestions">
@@ -97,6 +115,133 @@
             </div>
         </div>
     </footer>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <p id="loadingText">Đang tải...</p>
+        </div>
+    </div>
+
+    <script>
+        // Hàm chuẩn hóa tên truyện thành slug
+        function normalizeToSlug(text) {
+            // Bảng chuyển đổi tiếng Việt
+            const vietnameseMap = {
+                'à': 'a', 'á': 'a', 'ả': 'a', 'ã': 'a', 'ạ': 'a',
+                'ă': 'a', 'ằ': 'a', 'ắ': 'a', 'ẳ': 'a', 'ẵ': 'a', 'ặ': 'a',
+                'â': 'a', 'ầ': 'a', 'ấ': 'a', 'ẩ': 'a', 'ẫ': 'a', 'ậ': 'a',
+                'đ': 'd',
+                'è': 'e', 'é': 'e', 'ẻ': 'e', 'ẽ': 'e', 'ẹ': 'e',
+                'ê': 'e', 'ề': 'e', 'ế': 'e', 'ể': 'e', 'ễ': 'e', 'ệ': 'e',
+                'ì': 'i', 'í': 'i', 'ỉ': 'i', 'ĩ': 'i', 'ị': 'i',
+                'ò': 'o', 'ó': 'o', 'ỏ': 'o', 'õ': 'o', 'ọ': 'o',
+                'ô': 'o', 'ồ': 'o', 'ố': 'o', 'ổ': 'o', 'ỗ': 'o', 'ộ': 'o',
+                'ơ': 'o', 'ờ': 'o', 'ớ': 'o', 'ở': 'o', 'ỡ': 'o', 'ợ': 'o',
+                'ù': 'u', 'ú': 'u', 'ủ': 'u', 'ũ': 'u', 'ụ': 'u',
+                'ư': 'u', 'ừ': 'u', 'ứ': 'u', 'ử': 'u', 'ữ': 'u', 'ự': 'u',
+                'ỳ': 'y', 'ý': 'y', 'ỷ': 'y', 'ỹ': 'y', 'ỵ': 'y'
+            };
+            
+            let result = text.toLowerCase().trim();
+            
+            // Chuyển đổi tiếng Việt
+            for (let [viet, ascii] of Object.entries(vietnameseMap)) {
+                result = result.replace(new RegExp(viet, 'g'), ascii);
+            }
+            
+            // Bỏ ký tự đặc biệt, chỉ giữ chữ, số, khoảng trắng
+            result = result.replace(/[^a-z0-9\s]/g, '');
+            
+            // Thay khoảng trắng bằng dấu gạch ngang
+            result = result.replace(/\s+/g, '-');
+            
+            // Bỏ dấu gạch ngang thừa
+            result = result.replace(/-+/g, '-').replace(/^-|-$/g, '');
+            
+            return result;
+        }
+
+        // Crawl từ URL
+        document.getElementById('crawlUrlBtn')?.addEventListener('click', async function() {
+            const urlInput = document.getElementById('mangaUrl');
+            const url = urlInput.value.trim();
+            
+            if (!url) {
+                alert('Vui lòng nhập URL truyện');
+                return;
+            }
+            
+            const overlay = document.getElementById('loadingOverlay');
+            const loadingText = document.getElementById('loadingText');
+            loadingText.textContent = 'Đang crawl truyện từ URL...';
+            overlay.classList.remove('hidden');
+            
+            try {
+                const response = await fetch('/api/crawl/url', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(`✅ Đã thêm truyện: ${data.title}\n\nSố chapters: ${data.chapters}`);
+                    window.location.href = '/story/' + data.manga_id;
+                } else {
+                    alert('❌ Lỗi: ' + data.error);
+                }
+            } catch (error) {
+                alert('❌ Lỗi kết nối: ' + error.message);
+            } finally {
+                overlay.classList.add('hidden');
+            }
+        });
+
+        // Tìm trên NetTruyen
+        document.getElementById('searchNetTruyenBtn')?.addEventListener('click', async function() {
+            const query = '{{ query }}';
+            if (!query) return;
+            
+            const slug = normalizeToSlug(query);
+            const url = `https://nettruyen.me.uk/truyen-tranh/${slug}`;
+            
+            const overlay = document.getElementById('loadingOverlay');
+            const loadingText = document.getElementById('loadingText');
+            loadingText.textContent = `Đang tìm "${query}" trên NetTruyen...`;
+            overlay.classList.remove('hidden');
+            
+            try {
+                const response = await fetch('/api/crawl/url', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(`✅ Tìm thấy: ${data.title}\n\nSố chapters: ${data.chapters}`);
+                    window.location.href = '/story/' + data.manga_id;
+                } else {
+                    alert('❌ Không tìm thấy truyện này trên NetTruyen.\n\nThử dán trực tiếp link truyện vào ô "Thêm truyện từ URL"');
+                }
+            } catch (error) {
+                alert('❌ Lỗi kết nối: ' + error.message);
+            } finally {
+                overlay.classList.add('hidden');
+            }
+        });
+
+        // Enter để crawl URL
+        document.getElementById('mangaUrl')?.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('crawlUrlBtn')?.click();
+            }
+        });
+    </script>
 </body>
 
 </html>

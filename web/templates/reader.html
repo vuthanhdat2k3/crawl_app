@@ -202,14 +202,79 @@
             }
         });
 
-        // Preload next chapter images
+        // Preload and auto-download next chapter
         {% if next_chapter %}
-        window.addEventListener('load', () => {
+        window.addEventListener('load', async () => {
+            // Prefetch link
             const link = document.createElement('link');
             link.rel = 'prefetch';
             link.href = '/reader/{{ manga_id }}/{{ next_chapter.id }}';
             document.head.appendChild(link);
+
+            // Check and auto-download next chapter
+            await prefetchNextChapter();
         });
+
+        async function prefetchNextChapter() {
+            const nextChapterId = '{{ next_chapter.id }}';
+            const mangaId = '{{ manga_id }}';
+            
+            try {
+                // Kiểm tra chapter tiếp theo đã tải chưa
+                const checkResp = await fetch(`/api/check-chapter/${mangaId}/${nextChapterId}`);
+                const checkData = await checkResp.json();
+                
+                if (!checkData.downloaded) {
+                    console.log(`📥 Tự động tải trước chapter: ${nextChapterId}`);
+                    
+                    // Hiển thị thông báo nhỏ
+                    showPrefetchNotice(`Đang tải trước: {{ next_chapter.name }}`);
+                    
+                    // Tải chapter tiếp theo
+                    const downloadResp = await fetch(`/api/crawl/chapter/${mangaId}/${nextChapterId}`, {
+                        method: 'POST'
+                    });
+                    const downloadData = await downloadResp.json();
+                    
+                    if (downloadData.success) {
+                        showPrefetchNotice(`✅ Đã tải xong: {{ next_chapter.name }} (${downloadData.images} ảnh)`, 3000);
+                    }
+                }
+            } catch (e) {
+                console.log('Prefetch error:', e);
+            }
+        }
+
+        function showPrefetchNotice(text, duration = 0) {
+            let notice = document.getElementById('prefetchNotice');
+            if (!notice) {
+                notice = document.createElement('div');
+                notice.id = 'prefetchNotice';
+                notice.style.cssText = `
+                    position: fixed;
+                    bottom: 80px;
+                    right: 20px;
+                    background: rgba(99, 102, 241, 0.95);
+                    color: white;
+                    padding: 12px 20px;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    z-index: 1000;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                    transition: opacity 0.3s;
+                `;
+                document.body.appendChild(notice);
+            }
+            notice.textContent = text;
+            notice.style.opacity = '1';
+            
+            if (duration > 0) {
+                setTimeout(() => {
+                    notice.style.opacity = '0';
+                    setTimeout(() => notice.remove(), 300);
+                }, duration);
+            }
+        }
         {% endif %}
     </script>
 </body>

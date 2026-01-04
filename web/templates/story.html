@@ -83,7 +83,7 @@
                 🔄 Cập nhật chapters
               </button>
               <button id="downloadAll" class="btn btn-secondary">
-                📥 Tải toàn bộ truyện
+                📥 Tải tất cả (từ đầu)
               </button>
             </div>
 
@@ -96,6 +96,10 @@
               </div>
               <div class="progress-bar-container">
                 <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+              </div>
+              <div id="currentChapterInfo" style="margin-top: 12px; padding: 12px; background: rgba(99, 102, 241, 0.1); border-radius: 8px; display: none;">
+                <p style="margin: 0; font-size: 14px;">📄 Đang tải: <strong id="currentChapterName">...</strong></p>
+                <p id="chapterImageProgress" style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary);"></p>
               </div>
               <p class="progress-note">⚠️ Quá trình tải có thể mất nhiều thời gian. Vui lòng không đóng trang.</p>
             </div>
@@ -214,47 +218,88 @@
       });
     });
 
-    // Download all chapters
+    // Download all chapters with SSE streaming
     document.getElementById('downloadAll')?.addEventListener('click', async function () {
       const btn = this;
       const progressDiv = document.getElementById('downloadProgress');
       const progressBar = document.getElementById('progressBar');
       const downloadedCount = document.getElementById('downloadedCount');
       const totalCount = document.getElementById('totalCount');
+      const currentChapterInfo = document.getElementById('currentChapterInfo');
+      const currentChapterName = document.getElementById('currentChapterName');
+      const chapterImageProgress = document.getElementById('chapterImageProgress');
 
       // Xác nhận trước khi tải
-      const confirmed = confirm('⚠️ Bạn có chắc muốn tải toàn bộ {{ story.total_chapters }} chapters?\n\nQuá trình này có thể mất rất nhiều thời gian và dung lượng đĩa.');
+      const confirmed = confirm('⚠️ Bạn có chắc muốn tải toàn bộ {{ story.total_chapters }} chapters?\n\nSẽ tải từ Chapter đầu tiên đến mới nhất.');
       if (!confirmed) return;
 
       // Hiển thị progress
       btn.disabled = true;
       btn.textContent = '⏳ Đang tải...';
       progressDiv.classList.remove('hidden');
+      currentChapterInfo.style.display = 'block';
       totalCount.textContent = '{{ story.total_chapters }}';
 
+      let downloaded = 0;
+      let total = {{ story.total_chapters }};
+
       try {
-        // Gọi API tải toàn bộ
+        // Sử dụng SSE để nhận progress realtime
         const response = await fetch('/api/download-all/{{ story.id }}', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
+          method: 'POST'
         });
 
-        const data = await response.json();
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
 
-        if (data.success) {
-          progressBar.style.width = '100%';
-          downloadedCount.textContent = data.downloaded;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-          alert(`✅ Hoàn thành!\n\nĐã tải: ${data.downloaded}/${data.total} chapters` +
-            (data.errors.length > 0 ? `\n\nLỗi: ${data.errors.length} chapters` : ''));
-        } else {
-          alert('❌ Lỗi: ' + data.error);
+          const text = decoder.decode(value);
+          const lines = text.split('\n');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+
+                if (data.type === 'start') {
+                  total = data.total;
+                  totalCount.textContent = total;
+                } else if (data.type === 'progress') {
+                  downloaded = data.current;
+                  downloadedCount.textContent = downloaded;
+                  progressBar.style.width = `${(downloaded / total) * 100}%`;
+                  currentChapterName.textContent = data.chapter;
+                  chapterImageProgress.textContent = `✅ Hoàn thành ${data.images} ảnh`;
+                  
+                  // Cập nhật UI chapter list
+                  const chapterItem = document.querySelector(`a[href*="/${data.chapter}"]`);
+                  if (chapterItem) {
+                    chapterItem.classList.add('downloaded');
+                  }
+                } else if (data.type === 'error' && data.chapter) {
+                  chapterImageProgress.textContent = `❌ Lỗi: ${data.error}`;
+                } else if (data.type === 'complete') {
+                  progressBar.style.width = '100%';
+                  currentChapterName.textContent = 'Hoàn thành!';
+                  chapterImageProgress.textContent = '';
+                  alert(`✅ Hoàn thành!\n\nĐã tải: ${data.downloaded}/${data.total} chapters` +
+                    (data.errors && data.errors.length > 0 ? `\n\nLỗi: ${data.errors.length} chapters` : ''));
+                  window.location.reload();
+                }
+              } catch (e) {
+                console.log('Parse error:', e);
+              }
+            }
+          }
         }
       } catch (error) {
         alert('❌ Lỗi kết nối: ' + error.message);
       } finally {
         btn.disabled = false;
-        btn.textContent = '📥 Tải toàn bộ truyện';
+        btn.textContent = '📥 Tải tất cả (từ đầu)';
       }
     });
 
