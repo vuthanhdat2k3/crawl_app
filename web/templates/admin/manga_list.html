@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý Manga - Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .admin-layout {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .admin-sidebar {
+            width: 260px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            padding: 20px;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .admin-main {
+            flex: 1;
+            margin-left: 260px;
+            padding: 30px;
+            background: var(--bg-primary);
+            min-height: 100vh;
+        }
+
+        .sidebar-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+
+        .sidebar-logo-icon {
+            font-size: 32px;
+        }
+
+        .sidebar-logo-text {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .sidebar-nav {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .sidebar-nav-item {
+            margin-bottom: 4px;
+        }
+
+        .sidebar-nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .sidebar-nav-link:hover,
+        .sidebar-nav-link.active {
+            background: var(--bg-tertiary);
+            color: var(--primary);
+        }
+
+        .sidebar-nav-link.active {
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        .sidebar-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .sidebar-section-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-tertiary);
+            margin-bottom: 12px;
+            padding-left: 16px;
+        }
+
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .admin-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .admin-section {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 24px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .search-box {
+            display: flex;
+            gap: 10px;
+        }
+
+        .search-box input {
+            padding: 10px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            min-width: 250px;
+        }
+
+        .manga-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .manga-card-admin {
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            transition: all 0.3s;
+        }
+
+        .manga-card-admin:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .manga-card-header {
+            display: flex;
+            gap: 16px;
+            padding: 16px;
+        }
+
+        .manga-card-cover {
+            width: 80px;
+            height: 110px;
+            border-radius: 8px;
+            object-fit: cover;
+            background: var(--bg-secondary);
+        }
+
+        .manga-card-info {
+            flex: 1;
+        }
+
+        .manga-card-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .manga-card-meta {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .manga-card-footer {
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .progress-mini {
+            flex: 1;
+            margin-right: 16px;
+        }
+
+        .progress-bar {
+            height: 6px;
+            background: var(--bg-primary);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            border-radius: 3px;
+        }
+
+        .progress-text {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+
+        .btn-icon-primary {
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--primary);
+        }
+
+        .btn-icon-primary:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-icon-danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
+
+        .btn-icon-danger:hover {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-icon-success {
+            background: rgba(34, 197, 94, 0.1);
+            color: #22c55e;
+        }
+
+        .btn-icon-success:hover {
+            background: #22c55e;
+            color: white;
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .alert-success {
+            background: rgba(34, 197, 94, 0.1);
+            color: #22c55e;
+            border: 1px solid rgba(34, 197, 94, 0.2);
+        }
+
+        .alert-danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="admin-layout">
+        <!-- Sidebar -->
+        <aside class="admin-sidebar">
+            <div class="sidebar-logo">
+                <span class="sidebar-logo-icon">📚</span>
+                <span class="sidebar-logo-text">Admin Panel</span>
+            </div>
+            <ul class="sidebar-nav">
+                <li class="sidebar-nav-item"><a href="{{ url_for('admin_dashboard') }}"
+                        class="sidebar-nav-link"><span>📊</span> Dashboard</a></li>
+                <li class="sidebar-nav-item"><a href="{{ url_for('admin_manga_list') }}"
+                        class="sidebar-nav-link active"><span>📖</span> Quản lý Manga</a></li>
+                <li class="sidebar-nav-item"><a href="{{ url_for('admin_manga_add') }}"
+                        class="sidebar-nav-link"><span>➕</span> Thêm Manga</a></li>
+                <li class="sidebar-nav-item"><a href="{{ url_for('admin_users') }}"
+                        class="sidebar-nav-link"><span>👥</span> Quản lý Users</a></li>
+            </ul>
+            <div class="sidebar-section">
+                <div class="sidebar-section-title">Trang web</div>
+                <ul class="sidebar-nav">
+                    <li class="sidebar-nav-item"><a href="{{ url_for('index') }}"
+                            class="sidebar-nav-link"><span>🏠</span> Trang chủ</a></li>
+                    <li class="sidebar-nav-item"><a href="{{ url_for('logout') }}"
+                            class="sidebar-nav-link"><span>🚪</span> Đăng xuất</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="admin-main">
+            <div class="admin-header">
+                <h1 class="admin-title">📖 Quản lý Manga</h1>
+                <a href="{{ url_for('admin_manga_add') }}" class="btn btn-primary">➕ Thêm truyện</a>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
+
+            <div class="admin-section">
+                <div class="section-header">
+                    <h2 class="section-title">Danh sách truyện ({{ mangas|length }})</h2>
+                    <div class="search-box">
+                        <input type="text" id="searchInput" placeholder="🔍 Tìm kiếm truyện...">
+                    </div>
+                </div>
+
+                {% if mangas %}
+                <div class="manga-grid" id="mangaGrid">
+                    {% for manga in mangas %}
+                    <div class="manga-card-admin" data-title="{{ manga.title|lower }}">
+                        <div class="manga-card-header">
+                            <img src="{{ manga.thumbnail or 'https://via.placeholder.com/80x110?text=No+Image' }}"
+                                alt="{{ manga.title }}" class="manga-card-cover"
+                                onerror="this.src='https://via.placeholder.com/80x110?text=No+Image'">
+                            <div class="manga-card-info">
+                                <h3 class="manga-card-title">{{ manga.title[:50] }}{% if manga.title|length > 50 %}...{%
+                                    endif %}</h3>
+                                <p class="manga-card-meta">📑 {{ manga.total_chapters }} chapters</p>
+                                <p class="manga-card-meta">☁️ {{ manga.downloaded_chapters }} đã tải</p>
+                            </div>
+                        </div>
+                        <div class="manga-card-footer">
+                            <div class="progress-mini">
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: {{ manga.download_percentage }}%"></div>
+                                </div>
+                                <span class="progress-text">{{ manga.download_percentage }}% hoàn thành</span>
+                            </div>
+                            <div class="card-actions">
+                                <a href="{{ url_for('admin_manga_detail', manga_id=manga.id) }}"
+                                    class="btn-icon btn-icon-primary" title="Chi tiết">👁️</a>
+                                <a href="{{ url_for('story', manga_id=manga.id) }}" class="btn-icon btn-icon-success"
+                                    title="Xem truyện" target="_blank">🔗</a>
+                                <form action="{{ url_for('admin_manga_delete', manga_id=manga.id) }}" method="POST"
+                                    style="display:inline"
+                                    onsubmit="return confirm('Bạn có chắc muốn xóa truyện này?')">
+                                    <button type="submit" class="btn-icon btn-icon-danger" title="Xóa">🗑️</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <div class="empty-state-icon">📭</div>
+                    <h3>Chưa có truyện nào</h3>
+                    <p>Nhấn "Thêm truyện" để bắt đầu</p>
+                    <a href="{{ url_for('admin_manga_add') }}" class="btn btn-primary" style="margin-top: 16px;">➕ Thêm
+                        truyện</a>
+                </div>
+                {% endif %}
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Search functionality
+        document.getElementById('searchInput')?.addEventListener('input', function () {
+            const query = this.value.toLowerCase();
+            document.querySelectorAll('.manga-card-admin').forEach(card => {
+                const title = card.dataset.title;
+                card.style.display = title.includes(query) ? 'block' : 'none';
+            });
+        });
+    </script>
+</body>
+
+</html>

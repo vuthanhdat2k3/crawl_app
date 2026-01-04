@@ -16,12 +16,34 @@
     <nav class="nav container">
       <a href="/" class="logo">
         <span class="logo-icon">📚</span>
-        <span class="logo-text">MANGA<span class="highlight">HEAVEN</span></span>
+        <span class="logo-text hide-mobile">MANGA<span class="highlight">HEAVEN</span></span>
       </a>
-      <div class="nav-links">
-        <a href="/" class="nav-link">Trang chủ</a>
-        <span class="nav-separator">/</span>
-        <span class="nav-current">{{ story.title }}</span>
+      
+      <button class="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
+      
+      <div class="nav-links" id="navLinks">
+        <a href="/" class="nav-link">🏠 <span>Trang chủ</span></a>
+        <a href="/search" class="nav-link">🔍 <span>Tìm kiếm</span></a>
+      </div>
+      
+      <div class="nav-actions">
+        {% if current_user.is_authenticated %}
+        <div class="user-dropdown">
+          <button class="user-dropdown-btn" onclick="toggleUserMenu()">
+            <span class="user-avatar-small">{{ current_user.username[0].upper() }}</span>
+            <span class="hide-mobile">{{ current_user.username }}</span>
+            <span class="dropdown-arrow">▼</span>
+          </button>
+          <div class="user-dropdown-menu" id="userDropdown">
+            <a href="/account" class="dropdown-item">⚙️ Cài đặt</a>
+            {% if current_user.is_admin() %}
+            <a href="/admin" class="dropdown-item">📊 Admin</a>
+            {% endif %}
+            <div class="dropdown-divider"></div>
+            <a href="/logout" class="dropdown-item dropdown-item-danger">🚪 Đăng xuất</a>
+          </div>
+        </div>
+        {% endif %}
       </div>
     </nav>
   </header>
@@ -97,9 +119,11 @@
               <div class="progress-bar-container">
                 <div class="progress-bar" id="progressBar" style="width: 0%"></div>
               </div>
-              <div id="currentChapterInfo" style="margin-top: 12px; padding: 12px; background: rgba(99, 102, 241, 0.1); border-radius: 8px; display: none;">
+              <div id="currentChapterInfo"
+                style="margin-top: 12px; padding: 12px; background: rgba(99, 102, 241, 0.1); border-radius: 8px; display: none;">
                 <p style="margin: 0; font-size: 14px;">📄 Đang tải: <strong id="currentChapterName">...</strong></p>
-                <p id="chapterImageProgress" style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary);"></p>
+                <p id="chapterImageProgress" style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary);">
+                </p>
               </div>
               <p class="progress-note">⚠️ Quá trình tải có thể mất nhiều thời gian. Vui lòng không đóng trang.</p>
             </div>
@@ -243,64 +267,64 @@
       let downloaded = 0;
       let total = {{ story.total_chapters }};
 
-      try {
-        // Sử dụng SSE để nhận progress realtime
-        const response = await fetch('/api/download-all/{{ story.id }}', {
-          method: 'POST'
-        });
+    try {
+      // Sử dụng SSE để nhận progress realtime
+      const response = await fetch('/api/download-all/{{ story.id }}', {
+        method: 'POST'
+      });
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-          const text = decoder.decode(value);
-          const lines = text.split('\n');
+        const text = decoder.decode(value);
+        const lines = text.split('\n');
 
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6));
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
 
-                if (data.type === 'start') {
-                  total = data.total;
-                  totalCount.textContent = total;
-                } else if (data.type === 'progress') {
-                  downloaded = data.current;
-                  downloadedCount.textContent = downloaded;
-                  progressBar.style.width = `${(downloaded / total) * 100}%`;
-                  currentChapterName.textContent = data.chapter;
-                  chapterImageProgress.textContent = `✅ Hoàn thành ${data.images} ảnh`;
-                  
-                  // Cập nhật UI chapter list
-                  const chapterItem = document.querySelector(`a[href*="/${data.chapter}"]`);
-                  if (chapterItem) {
-                    chapterItem.classList.add('downloaded');
-                  }
-                } else if (data.type === 'error' && data.chapter) {
-                  chapterImageProgress.textContent = `❌ Lỗi: ${data.error}`;
-                } else if (data.type === 'complete') {
-                  progressBar.style.width = '100%';
-                  currentChapterName.textContent = 'Hoàn thành!';
-                  chapterImageProgress.textContent = '';
-                  alert(`✅ Hoàn thành!\n\nĐã tải: ${data.downloaded}/${data.total} chapters` +
-                    (data.errors && data.errors.length > 0 ? `\n\nLỗi: ${data.errors.length} chapters` : ''));
-                  window.location.reload();
+              if (data.type === 'start') {
+                total = data.total;
+                totalCount.textContent = total;
+              } else if (data.type === 'progress') {
+                downloaded = data.current;
+                downloadedCount.textContent = downloaded;
+                progressBar.style.width = `${(downloaded / total) * 100}%`;
+                currentChapterName.textContent = data.chapter;
+                chapterImageProgress.textContent = `✅ Hoàn thành ${data.images} ảnh`;
+
+                // Cập nhật UI chapter list
+                const chapterItem = document.querySelector(`a[href*="/${data.chapter}"]`);
+                if (chapterItem) {
+                  chapterItem.classList.add('downloaded');
                 }
-              } catch (e) {
-                console.log('Parse error:', e);
+              } else if (data.type === 'error' && data.chapter) {
+                chapterImageProgress.textContent = `❌ Lỗi: ${data.error}`;
+              } else if (data.type === 'complete') {
+                progressBar.style.width = '100%';
+                currentChapterName.textContent = 'Hoàn thành!';
+                chapterImageProgress.textContent = '';
+                alert(`✅ Hoàn thành!\n\nĐã tải: ${data.downloaded}/${data.total} chapters` +
+                  (data.errors && data.errors.length > 0 ? `\n\nLỗi: ${data.errors.length} chapters` : ''));
+                window.location.reload();
               }
+            } catch (e) {
+              console.log('Parse error:', e);
             }
           }
         }
-      } catch (error) {
-        alert('❌ Lỗi kết nối: ' + error.message);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = '📥 Tải tất cả (từ đầu)';
       }
+    } catch (error) {
+      alert('❌ Lỗi kết nối: ' + error.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '📥 Tải tất cả (từ đầu)';
+    }
     });
 
     // Check download status on page load
@@ -320,6 +344,31 @@
       }
     }
     checkDownloadStatus();
+    
+    // User dropdown menu toggle
+    function toggleUserMenu() {
+      const dropdown = document.getElementById('userDropdown');
+      dropdown.classList.toggle('show');
+    }
+    
+    // Mobile menu toggle
+    function toggleMobileMenu() {
+      const navLinks = document.getElementById('navLinks');
+      navLinks.classList.toggle('show');
+    }
+    
+    // Close menus when clicking outside
+    document.addEventListener('click', function(e) {
+      const userDropdown = document.getElementById('userDropdown');
+      const navLinks = document.getElementById('navLinks');
+      
+      if (userDropdown && !e.target.closest('.user-dropdown')) {
+        userDropdown.classList.remove('show');
+      }
+      if (navLinks && !e.target.closest('.nav-links') && !e.target.closest('.mobile-menu-btn')) {
+        navLinks.classList.remove('show');
+      }
+    });
   </script>
 </body>
 

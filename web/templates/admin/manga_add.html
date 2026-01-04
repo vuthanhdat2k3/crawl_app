@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thêm Manga - Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .admin-layout { display: flex; min-height: 100vh; }
+        .admin-sidebar { width: 260px; background: var(--bg-secondary); border-right: 1px solid var(--border-color); padding: 20px; position: fixed; height: 100vh; overflow-y: auto; }
+        .admin-main { flex: 1; margin-left: 260px; padding: 30px; background: var(--bg-primary); min-height: 100vh; }
+        .sidebar-logo { display: flex; align-items: center; gap: 12px; padding-bottom: 20px; border-bottom: 1px solid var(--border-color); margin-bottom: 20px; }
+        .sidebar-logo-icon { font-size: 32px; }
+        .sidebar-logo-text { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+        .sidebar-nav { list-style: none; padding: 0; margin: 0; }
+        .sidebar-nav-item { margin-bottom: 4px; }
+        .sidebar-nav-link { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 10px; color: var(--text-secondary); text-decoration: none; font-weight: 500; transition: all 0.2s; }
+        .sidebar-nav-link:hover, .sidebar-nav-link.active { background: var(--bg-tertiary); color: var(--primary); }
+        .sidebar-nav-link.active { background: rgba(99, 102, 241, 0.1); }
+        .sidebar-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color); }
+        .sidebar-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-tertiary); margin-bottom: 12px; padding-left: 16px; }
+        .admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .admin-title { font-size: 28px; font-weight: 700; color: var(--text-primary); }
+        .admin-section { background: var(--bg-secondary); border-radius: 16px; padding: 32px; border: 1px solid var(--border-color); max-width: 600px; }
+        .form-group { margin-bottom: 24px; }
+        .form-label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--text-primary); }
+        .form-hint { font-size: 13px; color: var(--text-secondary); margin-top: 6px; }
+        .form-input { width: 100%; padding: 14px 16px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-tertiary); color: var(--text-primary); font-size: 15px; transition: all 0.3s; }
+        .form-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2); }
+        .btn-submit { width: 100%; padding: 14px; background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s; }
+        .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(99, 102, 241, 0.4); }
+        .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .alert { padding: 12px 16px; border-radius: 10px; margin-bottom: 20px; font-size: 14px; }
+        .alert-success { background: rgba(34, 197, 94, 0.1); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.2); }
+        .alert-danger { background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); }
+        .example-urls { background: var(--bg-tertiary); border-radius: 10px; padding: 16px; margin-top: 16px; }
+        .example-urls h4 { margin-bottom: 12px; color: var(--text-primary); font-size: 14px; }
+        .example-url { font-family: monospace; font-size: 13px; color: var(--primary); padding: 8px 12px; background: var(--bg-secondary); border-radius: 6px; margin-bottom: 8px; cursor: pointer; }
+        .example-url:hover { background: rgba(99, 102, 241, 0.1); }
+    </style>
+</head>
+<body>
+    <div class="admin-layout">
+        <!-- Sidebar -->
+        <aside class="admin-sidebar">
+            <div class="sidebar-logo">
+                <span class="sidebar-logo-icon">📚</span>
+                <span class="sidebar-logo-text">Admin Panel</span>
+            </div>
+            <ul class="sidebar-nav">
+                <li class="sidebar-nav-item"><a href="{{ url_for('admin_dashboard') }}" class="sidebar-nav-link"><span>📊</span> Dashboard</a></li>
+                <li class="sidebar-nav-item"><a href="{{ url_for('admin_manga_list') }}" class="sidebar-nav-link"><span>📖</span> Quản lý Manga</a></li>
+                <li class="sidebar-nav-item"><a href="{{ url_for('admin_manga_add') }}" class="sidebar-nav-link active"><span>➕</span> Thêm Manga</a></li>
+                <li class="sidebar-nav-item"><a href="{{ url_for('admin_users') }}" class="sidebar-nav-link"><span>👥</span> Quản lý Users</a></li>
+            </ul>
+            <div class="sidebar-section">
+                <div class="sidebar-section-title">Trang web</div>
+                <ul class="sidebar-nav">
+                    <li class="sidebar-nav-item"><a href="{{ url_for('index') }}" class="sidebar-nav-link"><span>🏠</span> Trang chủ</a></li>
+                    <li class="sidebar-nav-item"><a href="{{ url_for('logout') }}" class="sidebar-nav-link"><span>🚪</span> Đăng xuất</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="admin-main">
+            <div class="admin-header">
+                <h1 class="admin-title">➕ Thêm Manga mới</h1>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <div class="admin-section">
+                <form method="POST" action="{{ url_for('admin_manga_add') }}" id="addForm">
+                    <div class="form-group">
+                        <label class="form-label">🔗 URL truyện từ NetTruyen</label>
+                        <input type="url" name="url" class="form-input" 
+                               placeholder="https://nettruyen.me.uk/truyen-tranh/ten-truyen" 
+                               required id="urlInput">
+                        <p class="form-hint">Dán link truyện từ NetTruyen để tự động crawl thông tin</p>
+                    </div>
+
+                    <button type="submit" class="btn-submit" id="submitBtn">
+                        📥 Thêm truyện
+                    </button>
+                </form>
+
+                <div class="example-urls">
+                    <h4>📌 Ví dụ URL hợp lệ:</h4>
+                    <div class="example-url" onclick="fillUrl(this)">https://nettruyen.me.uk/truyen-tranh/dau-la-dai-luc-5</div>
+                    <div class="example-url" onclick="fillUrl(this)">https://nettruyen.me.uk/truyen-tranh/one-piece</div>
+                    <div class="example-url" onclick="fillUrl(this)">https://nettruyen.me.uk/truyen-tranh/ta-la-ta-de-cuong-ma</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function fillUrl(el) {
+            document.getElementById('urlInput').value = el.textContent;
+        }
+
+        document.getElementById('addForm')?.addEventListener('submit', function() {
+            const btn = document.getElementById('submitBtn');
+            btn.textContent = '⏳ Đang crawl...';
+            btn.disabled = true;
+        });
+    </script>
+</body>
+</html>

@@ -15,7 +15,7 @@
         <div class="reader-nav">
             <a href="/story/{{ manga_id }}" class="back-btn">
                 <span class="back-icon">←</span>
-                <span class="back-text">{{ story.title }}</span>
+                <span class="back-text hide-mobile">{{ story.title }}</span>
             </a>
 
             <div class="chapter-selector">
@@ -31,18 +31,34 @@
             <div class="reader-controls">
                 {% if prev_chapter %}
                 <a href="/reader/{{ manga_id }}/{{ prev_chapter.id }}" class="nav-btn" title="Chapter trước">
-                    ← Trước
+                    <span class="hide-mobile">←</span> Trước
                 </a>
                 {% else %}
-                <span class="nav-btn disabled">← Trước</span>
+                <span class="nav-btn disabled"><span class="hide-mobile">←</span> Trước</span>
                 {% endif %}
 
                 {% if next_chapter %}
                 <a href="/reader/{{ manga_id }}/{{ next_chapter.id }}" class="nav-btn" title="Chapter sau">
-                    Sau →
+                    Sau <span class="hide-mobile">→</span>
                 </a>
                 {% else %}
-                <span class="nav-btn disabled">Sau →</span>
+                <span class="nav-btn disabled">Sau <span class="hide-mobile">→</span></span>
+                {% endif %}
+                
+                {% if current_user.is_authenticated %}
+                <div class="user-dropdown reader-user-dropdown">
+                    <button class="user-dropdown-btn compact" onclick="toggleUserMenu()">
+                        <span class="user-avatar-small">{{ current_user.username[0].upper() }}</span>
+                    </button>
+                    <div class="user-dropdown-menu" id="userDropdown">
+                        <a href="/account" class="dropdown-item">⚙️ Cài đặt</a>
+                        {% if current_user.is_admin() %}
+                        <a href="/admin" class="dropdown-item">📊 Admin</a>
+                        {% endif %}
+                        <div class="dropdown-divider"></div>
+                        <a href="/logout" class="dropdown-item dropdown-item-danger">🚪 Đăng xuất</a>
+                    </div>
+                </div>
                 {% endif %}
             </div>
         </div>
@@ -113,15 +129,47 @@
 
     <!-- Floating Controls -->
     <div class="floating-controls" id="floatingControls">
-        <button class="float-btn" id="scrollTopBtn" title="Lên đầu trang">↑</button>
-        <button class="float-btn" id="toggleUIBtn" title="Ẩn/Hiện UI">👁️</button>
-        <button class="float-btn" id="scrollBottomBtn" title="Xuống cuối">↓</button>
+        <button class="float-btn toggle-float-btn" id="toggleFloatBtn" title="Ẩn nút điều khiển">×</button>
+        <div class="float-buttons" id="floatButtons">
+            <button class="float-btn" id="scrollTopBtn" title="Lên đầu trang">↑</button>
+            <button class="float-btn" id="toggleUIBtn" title="Ẩn/Hiện UI">👁️</button>
+            <button class="float-btn" id="scrollBottomBtn" title="Xuống cuối">↓</button>
+        </div>
     </div>
 
     <!-- Progress Bar -->
     <div class="reading-progress" id="progressBar"></div>
 
     <script>
+        // Auto-hide floating controls after 3 seconds
+        let floatAutoHideTimer;
+        const floatingControls = document.getElementById('floatingControls');
+        
+        function resetFloatAutoHide() {
+            floatingControls?.classList.remove('auto-hidden');
+            clearTimeout(floatAutoHideTimer);
+            floatAutoHideTimer = setTimeout(() => {
+                floatingControls?.classList.add('auto-hidden');
+            }, 3000);
+        }
+        
+        // Show on scroll/touch, auto-hide after 3s
+        window.addEventListener('scroll', resetFloatAutoHide);
+        window.addEventListener('touchstart', resetFloatAutoHide);
+        resetFloatAutoHide();
+        
+        // Toggle floating buttons visibility
+        let floatVisible = true;
+        document.getElementById('toggleFloatBtn')?.addEventListener('click', () => {
+            floatVisible = !floatVisible;
+            const floatButtons = document.getElementById('floatButtons');
+            const toggleBtn = document.getElementById('toggleFloatBtn');
+            floatButtons.classList.toggle('hidden', !floatVisible);
+            toggleBtn.textContent = floatVisible ? '×' : '☰';
+            toggleBtn.title = floatVisible ? 'Ẩn nút điều khiển' : 'Hiện nút điều khiển';
+            resetFloatAutoHide();
+        });
+        
         // Chapter selector
         document.getElementById('chapterSelect')?.addEventListener('change', function () {
             window.location.href = `/reader/{{ manga_id }}/${this.value}`;
@@ -276,6 +324,20 @@
             }
         }
         {% endif %}
+        
+        // User dropdown menu toggle
+        function toggleUserMenu() {
+            const dropdown = document.getElementById('userDropdown');
+            dropdown.classList.toggle('show');
+        }
+        
+        // Close menus when clicking outside
+        document.addEventListener('click', function(e) {
+            const userDropdown = document.getElementById('userDropdown');
+            if (userDropdown && !e.target.closest('.user-dropdown')) {
+                userDropdown.classList.remove('show');
+            }
+        });
     </script>
 </body>
 

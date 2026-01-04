@@ -164,6 +164,109 @@ class Database:
             "percentage": round(downloaded / total * 100, 1) if total > 0 else 0
         }
     
+    # ==================== USER MANAGEMENT ====================
+    
+    def create_user(self, username, email, password_hash, role='user'):
+        """Tạo user mới"""
+        collection = self.db.users
+        
+        # Kiểm tra username/email đã tồn tại
+        if collection.find_one({"$or": [{"username": username}, {"email": email}]}):
+            return None, "Username hoặc email đã tồn tại"
+        
+        user = {
+            "username": username,
+            "email": email,
+            "password_hash": password_hash,
+            "role": role,  # 'admin' hoặc 'user'
+            "is_active": True,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        
+        result = collection.insert_one(user)
+        user["_id"] = result.inserted_id
+        return user, None
+    
+    def get_user_by_username(self, username):
+        """Lấy user theo username"""
+        collection = self.db.users
+        return collection.find_one({"username": username})
+    
+    def get_user_by_email(self, email):
+        """Lấy user theo email"""
+        collection = self.db.users
+        return collection.find_one({"email": email})
+    
+    def get_user_by_id(self, user_id):
+        """Lấy user theo ID"""
+        collection = self.db.users
+        return collection.find_one({"_id": ObjectId(user_id)})
+    
+    def get_all_users(self):
+        """Lấy tất cả users"""
+        collection = self.db.users
+        return list(collection.find({}).sort("created_at", -1))
+    
+    def update_user(self, user_id, data):
+        """Cập nhật thông tin user"""
+        collection = self.db.users
+        data["updated_at"] = datetime.utcnow()
+        return collection.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": data}
+        )
+    
+    def delete_user(self, user_id):
+        """Xóa user"""
+        collection = self.db.users
+        return collection.delete_one({"_id": ObjectId(user_id)})
+    
+    def init_admin(self, username, email, password_hash):
+        """Tạo admin mặc định nếu chưa có"""
+        collection = self.db.users
+        
+        # Kiểm tra đã có admin chưa
+        if collection.find_one({"role": "admin"}):
+            return None
+        
+        return self.create_user(username, email, password_hash, role='admin')
+    
+    # ==================== MANGA MANAGEMENT ====================
+    
+    def delete_manga(self, manga_id):
+        """Xóa manga và tất cả dữ liệu liên quan"""
+        # Xóa từ mangas
+        self.db.mangas.delete_one({"id": manga_id})
+        
+        # Xóa từ manga_details
+        self.db.manga_details.delete_one({"id": manga_id})
+        
+        # Xóa tất cả chapter images
+        result = self.db.chapter_images.delete_many({"manga_id": manga_id})
+        
+        return result.deleted_count
+    
+    def get_all_manga_stats(self):
+        """Lấy thống kê tất cả manga"""
+        mangas = list(self.db.mangas.find({}).sort("updated_at", -1))
+        
+        stats = []
+        for manga in mangas:
+            manga_id = manga.get("id")
+            detail = self.get_manga_detail(manga_id)
+            downloaded = self.db.chapter_images.count_documents({"manga_id": manga_id})
+            total = len(detail.get("chapters", [])) if detail else 0
+            
+            stats.append({
+                **manga,
+                "total_chapters": total,
+                "downloaded_chapters": downloaded,
+                "download_percentage": round(downloaded / total * 100, 1) if total > 0 else 0
+            })
+        
+        return stats
+    
     # ==================== SEARCH ====================
     
     def search_manga(self, query, limit=50):

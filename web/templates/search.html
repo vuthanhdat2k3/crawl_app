@@ -15,11 +15,34 @@
         <nav class="nav container">
             <a href="/" class="logo">
                 <span class="logo-icon">📚</span>
-                <span class="logo-text">MANGA<span class="highlight">HEAVEN</span></span>
+                <span class="logo-text hide-mobile">MANGA<span class="highlight">HEAVEN</span></span>
             </a>
-            <div class="nav-links">
-                <a href="/" class="nav-link">Trang chủ</a>
-                <a href="/search" class="nav-link active">Tìm kiếm</a>
+            
+            <button class="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
+            
+            <div class="nav-links" id="navLinks">
+                <a href="/" class="nav-link">🏠 <span>Trang chủ</span></a>
+                <a href="/search" class="nav-link active">🔍 <span>Tìm kiếm</span></a>
+            </div>
+            
+            <div class="nav-actions">
+                {% if current_user.is_authenticated %}
+                <div class="user-dropdown">
+                    <button class="user-dropdown-btn" onclick="toggleUserMenu()">
+                        <span class="user-avatar-small">{{ current_user.username[0].upper() }}</span>
+                        <span class="hide-mobile">{{ current_user.username }}</span>
+                        <span class="dropdown-arrow">▼</span>
+                    </button>
+                    <div class="user-dropdown-menu" id="userDropdown">
+                        <a href="/account" class="dropdown-item">⚙️ Cài đặt</a>
+                        {% if current_user.is_admin() %}
+                        <a href="/admin" class="dropdown-item">📊 Admin</a>
+                        {% endif %}
+                        <div class="dropdown-divider"></div>
+                        <a href="/logout" class="dropdown-item dropdown-item-danger">🚪 Đăng xuất</a>
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </nav>
     </header>
@@ -41,14 +64,15 @@
                 </form>
 
                 <!-- Thêm link crawl truyện mới -->
-                <div class="url-crawl-section" style="margin-top: 20px; padding: 20px; background: var(--bg-tertiary); border-radius: 12px;">
+                <div class="url-crawl-section"
+                    style="margin-top: 20px; padding: 20px; background: var(--bg-tertiary); border-radius: 12px;">
                     <h3 style="margin-bottom: 12px;">🔗 Thêm truyện từ URL</h3>
                     <p style="color: var(--text-secondary); margin-bottom: 12px; font-size: 14px;">
                         Dán link truyện từ NetTruyen để thêm vào thư viện
                     </p>
-                    <div style="display: flex; gap: 10px;">
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                         <input type="text" id="mangaUrl" placeholder="https://nettruyen.me.uk/truyen-tranh/ten-truyen"
-                            style="flex: 1; padding: 12px 16px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary);">
+                            style="flex: 1; min-width: 200px; padding: 12px 16px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary);">
                         <button id="crawlUrlBtn" class="btn btn-primary">
                             📥 Thêm truyện
                         </button>
@@ -143,50 +167,50 @@
                 'ư': 'u', 'ừ': 'u', 'ứ': 'u', 'ử': 'u', 'ữ': 'u', 'ự': 'u',
                 'ỳ': 'y', 'ý': 'y', 'ỷ': 'y', 'ỹ': 'y', 'ỵ': 'y'
             };
-            
+
             let result = text.toLowerCase().trim();
-            
+
             // Chuyển đổi tiếng Việt
             for (let [viet, ascii] of Object.entries(vietnameseMap)) {
                 result = result.replace(new RegExp(viet, 'g'), ascii);
             }
-            
+
             // Bỏ ký tự đặc biệt, chỉ giữ chữ, số, khoảng trắng
             result = result.replace(/[^a-z0-9\s]/g, '');
-            
+
             // Thay khoảng trắng bằng dấu gạch ngang
             result = result.replace(/\s+/g, '-');
-            
+
             // Bỏ dấu gạch ngang thừa
             result = result.replace(/-+/g, '-').replace(/^-|-$/g, '');
-            
+
             return result;
         }
 
         // Crawl từ URL
-        document.getElementById('crawlUrlBtn')?.addEventListener('click', async function() {
+        document.getElementById('crawlUrlBtn')?.addEventListener('click', async function () {
             const urlInput = document.getElementById('mangaUrl');
             const url = urlInput.value.trim();
-            
+
             if (!url) {
                 alert('Vui lòng nhập URL truyện');
                 return;
             }
-            
+
             const overlay = document.getElementById('loadingOverlay');
             const loadingText = document.getElementById('loadingText');
             loadingText.textContent = 'Đang crawl truyện từ URL...';
             overlay.classList.remove('hidden');
-            
+
             try {
                 const response = await fetch('/api/crawl/url', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url: url })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.success) {
                     alert(`✅ Đã thêm truyện: ${data.title}\n\nSố chapters: ${data.chapters}`);
                     window.location.href = '/story/' + data.manga_id;
@@ -201,27 +225,27 @@
         });
 
         // Tìm trên NetTruyen
-        document.getElementById('searchNetTruyenBtn')?.addEventListener('click', async function() {
+        document.getElementById('searchNetTruyenBtn')?.addEventListener('click', async function () {
             const query = '{{ query }}';
             if (!query) return;
-            
+
             const slug = normalizeToSlug(query);
             const url = `https://nettruyen.me.uk/truyen-tranh/${slug}`;
-            
+
             const overlay = document.getElementById('loadingOverlay');
             const loadingText = document.getElementById('loadingText');
             loadingText.textContent = `Đang tìm "${query}" trên NetTruyen...`;
             overlay.classList.remove('hidden');
-            
+
             try {
                 const response = await fetch('/api/crawl/url', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url: url })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.success) {
                     alert(`✅ Tìm thấy: ${data.title}\n\nSố chapters: ${data.chapters}`);
                     window.location.href = '/story/' + data.manga_id;
@@ -236,9 +260,34 @@
         });
 
         // Enter để crawl URL
-        document.getElementById('mangaUrl')?.addEventListener('keypress', function(e) {
+        document.getElementById('mangaUrl')?.addEventListener('keypress', function (e) {
             if (e.key === 'Enter') {
                 document.getElementById('crawlUrlBtn')?.click();
+            }
+        });
+        
+        // User dropdown menu toggle
+        function toggleUserMenu() {
+            const dropdown = document.getElementById('userDropdown');
+            dropdown.classList.toggle('show');
+        }
+        
+        // Mobile menu toggle
+        function toggleMobileMenu() {
+            const navLinks = document.getElementById('navLinks');
+            navLinks.classList.toggle('show');
+        }
+        
+        // Close menus when clicking outside
+        document.addEventListener('click', function(e) {
+            const userDropdown = document.getElementById('userDropdown');
+            const navLinks = document.getElementById('navLinks');
+            
+            if (userDropdown && !e.target.closest('.user-dropdown')) {
+                userDropdown.classList.remove('show');
+            }
+            if (navLinks && !e.target.closest('.nav-links') && !e.target.closest('.mobile-menu-btn')) {
+                navLinks.classList.remove('show');
             }
         });
     </script>

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,26 +9,61 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
+
 <body>
     <!-- Header -->
     <header class="header">
         <nav class="nav container">
             <a href="/" class="logo">
                 <span class="logo-icon">📚</span>
-                <span class="logo-text">MANGA<span class="highlight">HEAVEN</span></span>
+                <span class="logo-text hide-mobile">MANGA<span class="highlight">HEAVEN</span></span>
             </a>
-            <div class="nav-links">
-                <a href="/" class="nav-link active">Trang chủ</a>
-                <a href="/search" class="nav-link">Tìm kiếm</a>
+            
+            <!-- Mobile menu button -->
+            <button class="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
+            
+            <div class="nav-links" id="navLinks">
+                <a href="/" class="nav-link active">🏠 <span>Trang chủ</span></a>
+                <a href="/search" class="nav-link">🔍 <span>Tìm kiếm</span></a>
+                {% if current_user.is_authenticated and current_user.is_admin() %}
+                <a href="/admin" class="nav-link">📊 <span>Admin</span></a>
+                {% endif %}
             </div>
+            
             <div class="nav-actions">
-                <form action="/search" method="GET" class="search-form">
+                <form action="/search" method="GET" class="search-form hide-mobile">
                     <input type="text" name="q" placeholder="Tìm truyện..." class="search-input">
                     <button type="submit" class="search-btn">🔍</button>
                 </form>
-                <button id="refreshBtn" class="btn btn-primary">
-                    <span class="btn-icon">🔄</span> Cập nhật
-                </button>
+                
+                {% if current_user.is_authenticated %}
+                <!-- User Menu -->
+                <div class="user-dropdown">
+                    <button class="user-dropdown-btn" onclick="toggleUserMenu()">
+                        <span class="user-avatar-small">{{ current_user.username[0].upper() }}</span>
+                        <span class="hide-mobile">{{ current_user.username }}</span>
+                        <span class="dropdown-arrow">▼</span>
+                    </button>
+                    <div class="user-dropdown-menu" id="userDropdown">
+                        <div class="dropdown-header">
+                            <span class="user-avatar-medium">{{ current_user.username[0].upper() }}</span>
+                            <div>
+                                <strong>{{ current_user.username }}</strong>
+                                <small>{{ current_user.email or 'Chưa có email' }}</small>
+                            </div>
+                        </div>
+                        <div class="dropdown-divider"></div>
+                        <a href="/account" class="dropdown-item">⚙️ Cài đặt tài khoản</a>
+                        {% if current_user.is_admin() %}
+                        <a href="/admin" class="dropdown-item">📊 Admin Panel</a>
+                        {% endif %}
+                        <div class="dropdown-divider"></div>
+                        <a href="/logout" class="dropdown-item dropdown-item-danger">🚪 Đăng xuất</a>
+                    </div>
+                </div>
+                {% else %}
+                <a href="/login" class="btn btn-outline btn-sm">Đăng nhập</a>
+                {% endif %}
             </div>
         </nav>
     </header>
@@ -76,10 +112,8 @@
                 <article class="manga-card" data-id="{{ manga.id }}">
                     <a href="/story/{{ manga.id }}" class="manga-link">
                         <div class="manga-cover">
-                            <img src="{{ manga.thumbnail }}" 
-                                 alt="{{ manga.title }}" 
-                                 loading="lazy"
-                                 onerror="this.src='https://via.placeholder.com/200x280?text=No+Image'">
+                            <img src="{{ manga.thumbnail }}" alt="{{ manga.title }}" loading="lazy"
+                                onerror="this.src='https://via.placeholder.com/200x280?text=No+Image'">
                             <div class="manga-overlay">
                                 <span class="read-btn">Đọc ngay</span>
                             </div>
@@ -133,14 +167,14 @@
 
     <script>
         // Refresh/Crawl functionality
-        document.getElementById('refreshBtn')?.addEventListener('click', async function() {
+        document.getElementById('refreshBtn')?.addEventListener('click', async function () {
             const overlay = document.getElementById('loadingOverlay');
             overlay.classList.remove('hidden');
-            
+
             try {
                 const response = await fetch('/api/crawl/home', { method: 'POST' });
                 const data = await response.json();
-                
+
                 if (data.success) {
                     alert(`✅ Đã cập nhật ${data.count} truyện!`);
                     window.location.reload();
@@ -154,7 +188,7 @@
             }
         });
 
-        document.getElementById('crawlBtn')?.addEventListener('click', async function() {
+        document.getElementById('crawlBtn')?.addEventListener('click', async function () {
             document.getElementById('refreshBtn')?.click();
         });
 
@@ -171,6 +205,29 @@
             });
             lazyImages.forEach(img => observer.observe(img));
         }
+
+        // User dropdown menu
+        function toggleUserMenu() {
+            const dropdown = document.getElementById('userDropdown');
+            dropdown.classList.toggle('show');
+        }
+
+        // Mobile menu
+        function toggleMobileMenu() {
+            const navLinks = document.getElementById('navLinks');
+            navLinks.classList.toggle('show');
+        }
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.user-dropdown')) {
+                document.getElementById('userDropdown')?.classList.remove('show');
+            }
+            if (!e.target.closest('.nav-links') && !e.target.closest('.mobile-menu-btn')) {
+                document.getElementById('navLinks')?.classList.remove('show');
+            }
+        });
     </script>
 </body>
+
 </html>
