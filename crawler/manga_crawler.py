@@ -271,9 +271,12 @@ class MangaCrawler:
         with sync_playwright() as p:
             context = self._get_browser_context(p)
             page = context.new_page()
-            # Enable Stealth Mode
-            from playwright_stealth import stealth_sync
-            stealth_sync(page)
+            
+            # Additional anti-detection measures
+            page.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+                window.chrome = {runtime: {}};
+            """)
             
             page.goto(chapter_url, wait_until="domcontentloaded", timeout=60000)
             
