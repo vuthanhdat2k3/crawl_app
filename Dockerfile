@@ -1,10 +1,9 @@
 # ==================== Manga Heaven - Dockerfile ====================
-# Deploy on Railway, Render, or any Docker platform
-# Uses MongoDB Atlas + ImageKit.io Cloud Storage
+# Deploy on Railway - Cloud Only Mode
+# Uses MongoDB Atlas + ImageKit.io
 
 FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
 
 # Install system dependencies for Playwright
@@ -32,33 +31,24 @@ RUN apt-get update && apt-get install -y \
     xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for caching
+# Copy and install Python dependencies
 COPY requirements.txt .
-
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers
+# Install Playwright
 RUN pip install playwright && playwright install chromium
 
 # Copy application code
 COPY . .
 
-# Create necessary directories
+# Create directories
 RUN mkdir -p crawler/browser_profile
 
-# Copy entrypoint script
-COPY entrypoint.sh .
-RUN chmod +x entrypoint.sh
+# Make entrypoint executable and convert to Unix line endings
+RUN sed -i 's/\r$//' entrypoint.sh && chmod +x entrypoint.sh
 
-# Environment variables
+# Environment
 ENV PYTHONUNBUFFERED=1
-# Railway injects PORT, but we set a default just in case
-ENV PORT=5000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=30s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT}/ || exit 1
-
-# Run the application
-ENTRYPOINT ["./entrypoint.sh"]
+# Railway injects PORT automatically - just run the entrypoint
+CMD ["./entrypoint.sh"]
