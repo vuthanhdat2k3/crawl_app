@@ -8,9 +8,9 @@ import os
 import sys
 
 # Thêm đường dẫn root để import modules
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(CURRENT_DIR)
 sys.path.insert(0, ROOT_DIR)
-sys.path.insert(0, os.path.join(ROOT_DIR, 'crawler'))
 
 # Import crawler
 from crawler.manga_crawler import MangaCrawler
@@ -21,8 +21,11 @@ app.config['JSON_AS_ASCII'] = False
 # Khởi tạo crawler (Cloud-only mode)
 try:
     crawler = MangaCrawler()
+    print("✅ Crawler initialized successfully")
 except Exception as e:
-    print(f"Error initializing crawler: {e}")
+    print(f"❌ Error initializing crawler: {e}")
+    import traceback
+    traceback.print_exc()
     crawler = None
 
 
