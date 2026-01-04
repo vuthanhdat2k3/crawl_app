@@ -31,7 +31,7 @@ class MangaCrawler:
             self.user_data_dir,
             headless=True,
             args=["--disable-blink-features=AutomationControlled"],
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
         )
 
     def upload_cover(self, page, manga_id, thumbnail_url):
@@ -273,27 +273,49 @@ class MangaCrawler:
             page = context.new_page()
             page.goto(chapter_url, wait_until="domcontentloaded", timeout=60000)
             
+            # DEBUG: Kiểm tra xem có bị chặn không
+            page_title = page.title()
+            print(f"  📄 Page Title: {page_title}")
+            
+            if "Just a moment" in page_title or "Attention Required" in page_title:
+                print("  ⚠️ Bị Cloudflare chặn! Đang thử bypass nhẹ...")
+                page.wait_for_timeout(5000)
+            
             # Cuộn trang để kích hoạt lazy loading
             print("📜 Đang load ảnh...")
             for i in range(5):
                 page.evaluate(f"window.scrollTo(0, {(i+1) * 2000})")
-                page.wait_for_timeout(500)
+                page.wait_for_timeout(1000) # Tăng thời gian chờ
             page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            page.wait_for_timeout(2000)
+            page.wait_for_timeout(3000)
             
-            # Lấy tất cả ảnh
-            imgs = page.query_selector_all(".reading-detail img, .page-chapter img")
+            # Chờ ảnh xuất hiện (quan trọng)
+            try:
+                page.wait_for_selector(".reading-detail img, .page-chapter img", timeout=5000)
+            except:
+                print("  ⚠️ Timeout chờ ảnh, thử selector khác...")
+
+            # Lấy tất cả ảnh with enhanced selectors
+            imgs = page.query_selector_all(".reading-detail img, .page-chapter img, .reading img, #image-0")
             
             urls = []
             folder_path = f"manga/{manga_id}/{chapter_id}"
             
-            print(f"☁️ Đang upload {len(imgs)} ảnh lên ImageKit...")
+            print(f"☁️ Tìm thấy {len(imgs)} element ảnh. Bắt đầu upload...")
             
             for idx, img in enumerate(imgs):
-                src = img.get_attribute("data-src") or img.get_attribute("data-original") or img.get_attribute("src")
-                if not src or "http" not in src:
-                    continue
+                # Thử nhiều attribute chứa link ảnh
+                src = img.get_attribute("data-original") or img.get_attribute("data-src") or img.get_attribute("src")
                 
+                if not src:
+                    continue
+                    
+                if "http" not in src:
+                     if src.startswith("//"):
+                         src = "https:" + src
+                     else:
+                         continue
+
                 try:
                     response = page.request.get(src, headers={"referer": self.base_url + "/"})
                     if response.status == 200:
