@@ -3,9 +3,11 @@ Manga Heaven - Web Server
 CHỈ SỬ DỤNG CLOUD STORAGE (MongoDB + ImageKit)
 """
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify, redirect, url_for, Response
 import os
 import sys
+import json
+import time
 
 # Thêm đường dẫn root để import modules
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -142,36 +144,45 @@ def api_crawl_chapter(manga_id, chapter_id):
 
 @app.route('/api/download-all/<manga_id>', methods=['POST'])
 def api_download_all(manga_id):
-    """API: Tải toàn bộ truyện lên cloud"""
-    try:
-        story_data = crawler.get_story_data(manga_id)
-        if not story_data:
-            story_data = crawler.crawl_story_detail(manga_id)
-        
-        chapters = story_data.get('chapters', [])
-        total = len(chapters)
-        downloaded = 0
-        errors = []
-        
-        for idx, chapter in enumerate(chapters):
-            try:
-                chapter_id = chapter.get('id')
-                if chapter_id:
-                    images = crawler.download_chapter_images(manga_id, chapter_id)
-                    if images:
-                        downloaded += 1
-                    print(f"📥 [{downloaded}/{total}] {chapter_id}: {len(images)} ảnh")
-            except Exception as e:
-                errors.append(f"{chapter.get('id')}: {str(e)}")
-        
-        return jsonify({
-            "success": True, 
-            "total": total,
-            "downloaded": downloaded,
-            "errors": errors[:10]
-        })
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+    """API: Tải toàn bộ truyện lên cloud (Streaming để tránh timeout)"""
+    def generate():
+        try:
+            story_data = crawler.get_story_data(manga_id)
+            if not story_data:
+                story_data = crawler.crawl_story_detail(manga_id)
+            
+            chapters = story_data.get('chapters', [])
+            total = len(chapters)
+            downloaded = 0
+            errors = []
+            
+            # Gửi thông tin ban đầu
+            yield f"data: {json.dumps({'type': 'start', 'total': total})}\n\n"
+            
+            for idx, chapter in enumerate(chapters):
+                try:
+                    chapter_id = chapter.get('id')
+                    if chapter_id:
+                        images = crawler.download_chapter_images(manga_id, chapter_id)
+                        if images:
+                            downloaded += 1
+                        # Gửi progress cho mỗi chapter
+                        yield f"data: {json.dumps({'type': 'progress', 'current': idx + 1, 'total': total, 'chapter': chapter_id, 'images': len(images) if images else 0})}\n\n"
+                except Exception as e:
+                    error_msg = f"{chapter.get('id')}: {str(e)}"
+                    errors.append(error_msg)
+                    yield f"data: {json.dumps({'type': 'error', 'chapter': chapter.get('id'), 'error': str(e)})}\n\n"
+            
+            # Gửi kết quả cuối cùng
+            yield f"data: {json.dumps({'type': 'complete', 'success': True, 'total': total, 'downloaded': downloaded, 'errors': errors[:10]})}\n\n"
+            
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'success': False, 'error': str(e)})}\n\n"
+    
+    return Response(generate(), mimetype='text/event-stream', headers={
+        'Cache-Control': 'no-cache',
+        'X-Accel-Buffering': 'no'
+    })
 
 
 @app.route('/api/download-status/<manga_id>')
