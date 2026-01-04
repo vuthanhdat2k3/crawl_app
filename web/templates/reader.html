@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ chapter.name }} - {{ story.title }} - Manga Heaven</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body class="reader-body">
+    <!-- Reader Header -->
+    <header class="reader-header" id="readerHeader">
+        <div class="reader-nav">
+            <a href="/story/{{ manga_id }}" class="back-btn">
+                <span class="back-icon">←</span>
+                <span class="back-text">{{ story.title }}</span>
+            </a>
+
+            <div class="chapter-selector">
+                <select id="chapterSelect" class="chapter-select">
+                    {% for chap in story.chapters %}
+                    <option value="{{ chap.id }}" {% if chap.id==chapter.id %}selected{% endif %}>
+                        {{ chap.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="reader-controls">
+                {% if prev_chapter %}
+                <a href="/reader/{{ manga_id }}/{{ prev_chapter.id }}" class="nav-btn" title="Chapter trước">
+                    ← Trước
+                </a>
+                {% else %}
+                <span class="nav-btn disabled">← Trước</span>
+                {% endif %}
+
+                {% if next_chapter %}
+                <a href="/reader/{{ manga_id }}/{{ next_chapter.id }}" class="nav-btn" title="Chapter sau">
+                    Sau →
+                </a>
+                {% else %}
+                <span class="nav-btn disabled">Sau →</span>
+                {% endif %}
+            </div>
+        </div>
+    </header>
+
+    <!-- Reader Content -->
+    <main class="reader-content" id="readerContent">
+        <div class="reader-container">
+            {% if images %}
+            {% for img in images %}
+            <div class="page-wrapper">
+                {% if is_cloud_urls %}
+                <!-- Ảnh từ ImageKit Cloud -->
+                <img src="{{ img }}" alt="Trang {{ loop.index }}" class="page-image" loading="lazy"
+                    data-page="{{ loop.index }}">
+                {% else %}
+                <!-- Ảnh từ Local Storage -->
+                <img src="/cdn/{{ manga_id }}/{{ chapter.id }}/{{ img }}" alt="Trang {{ loop.index }}"
+                    class="page-image" loading="lazy" data-page="{{ loop.index }}">
+                {% endif %}
+                <span class="page-number">{{ loop.index }} / {{ images|length }}</span>
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="loading-chapter">
+                <div class="spinner"></div>
+                <h3>Đang tải chapter...</h3>
+                <p>Vui lòng đợi, ảnh đang được tải về server</p>
+                <button id="retryBtn" class="btn btn-primary" style="margin-top: 20px;">
+                    🔄 Tải lại
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </main>
+
+    <!-- Bottom Navigation -->
+    <footer class="reader-footer" id="readerFooter">
+        <div class="footer-nav">
+            {% if prev_chapter %}
+            <a href="/reader/{{ manga_id }}/{{ prev_chapter.id }}" class="footer-btn prev">
+                <span class="btn-icon">←</span>
+                <span class="btn-text">{{ prev_chapter.name }}</span>
+            </a>
+            {% else %}
+            <div class="footer-btn disabled">
+                <span class="btn-text">Đây là chapter đầu tiên</span>
+            </div>
+            {% endif %}
+
+            <a href="/story/{{ manga_id }}" class="footer-btn home">
+                <span class="btn-icon">📑</span>
+                <span class="btn-text">Danh sách</span>
+            </a>
+
+            {% if next_chapter %}
+            <a href="/reader/{{ manga_id }}/{{ next_chapter.id }}" class="footer-btn next">
+                <span class="btn-text">{{ next_chapter.name }}</span>
+                <span class="btn-icon">→</span>
+            </a>
+            {% else %}
+            <div class="footer-btn disabled">
+                <span class="btn-text">Đã là chapter mới nhất</span>
+            </div>
+            {% endif %}
+        </div>
+    </footer>
+
+    <!-- Floating Controls -->
+    <div class="floating-controls" id="floatingControls">
+        <button class="float-btn" id="scrollTopBtn" title="Lên đầu trang">↑</button>
+        <button class="float-btn" id="toggleUIBtn" title="Ẩn/Hiện UI">👁️</button>
+        <button class="float-btn" id="scrollBottomBtn" title="Xuống cuối">↓</button>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="reading-progress" id="progressBar"></div>
+
+    <script>
+        // Chapter selector
+        document.getElementById('chapterSelect')?.addEventListener('change', function () {
+            window.location.href = `/reader/{{ manga_id }}/${this.value}`;
+        });
+
+        // Scroll to top/bottom
+        document.getElementById('scrollTopBtn')?.addEventListener('click', () => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+
+        document.getElementById('scrollBottomBtn')?.addEventListener('click', () => {
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        });
+
+        // Toggle UI
+        let uiVisible = true;
+        document.getElementById('toggleUIBtn')?.addEventListener('click', () => {
+            uiVisible = !uiVisible;
+            document.getElementById('readerHeader').style.transform = uiVisible ? 'translateY(0)' : 'translateY(-100%)';
+            document.getElementById('readerFooter').style.transform = uiVisible ? 'translateY(0)' : 'translateY(100%)';
+        });
+
+        // Auto hide/show header on scroll
+        let lastScroll = 0;
+        window.addEventListener('scroll', () => {
+            const header = document.getElementById('readerHeader');
+            const footer = document.getElementById('readerFooter');
+            const currentScroll = window.scrollY;
+
+            // Progress bar
+            const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
+            const progress = (currentScroll / scrollHeight) * 100;
+            document.getElementById('progressBar').style.width = `${progress}%`;
+
+            // Hide/Show on scroll
+            if (currentScroll > lastScroll && currentScroll > 100) {
+                header.classList.add('hidden');
+                footer.classList.add('hidden');
+            } else {
+                header.classList.remove('hidden');
+                footer.classList.remove('hidden');
+            }
+            lastScroll = currentScroll;
+        });
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') {
+                const prevBtn = document.querySelector('.footer-btn.prev');
+                if (prevBtn && !prevBtn.classList.contains('disabled')) prevBtn.click();
+            }
+            if (e.key === 'ArrowRight') {
+                const nextBtn = document.querySelector('.footer-btn.next');
+                if (nextBtn && !nextBtn.classList.contains('disabled')) nextBtn.click();
+            }
+        });
+
+        // Retry loading
+        document.getElementById('retryBtn')?.addEventListener('click', async () => {
+            const btn = document.getElementById('retryBtn');
+            btn.textContent = '⏳ Đang tải...';
+            btn.disabled = true;
+
+            try {
+                const resp = await fetch('/api/crawl/chapter/{{ manga_id }}/{{ chapter.id }}', { method: 'POST' });
+                const data = await resp.json();
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert('❌ Lỗi: ' + data.error);
+                    btn.textContent = '🔄 Tải lại';
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                alert('❌ Lỗi kết nối');
+                btn.textContent = '🔄 Tải lại';
+                btn.disabled = false;
+            }
+        });
+
+        // Preload next chapter images
+        {% if next_chapter %}
+        window.addEventListener('load', () => {
+            const link = document.createElement('link');
+            link.rel = 'prefetch';
+            link.href = '/reader/{{ manga_id }}/{{ next_chapter.id }}';
+            document.head.appendChild(link);
+        });
+        {% endif %}
+    </script>
+</body>
+
+</html>

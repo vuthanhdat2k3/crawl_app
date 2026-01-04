@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ story.title }} - Manga Heaven</title>
+  <meta name="description" content="{{ story.description[:150] if story.description else story.title }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+  <!-- Header -->
+  <header class="header">
+    <nav class="nav container">
+      <a href="/" class="logo">
+        <span class="logo-icon">📚</span>
+        <span class="logo-text">MANGA<span class="highlight">HEAVEN</span></span>
+      </a>
+      <div class="nav-links">
+        <a href="/" class="nav-link">Trang chủ</a>
+        <span class="nav-separator">/</span>
+        <span class="nav-current">{{ story.title }}</span>
+      </div>
+    </nav>
+  </header>
+
+  <!-- Story Detail -->
+  <main class="story-page">
+    <!-- Hero Banner -->
+    <div class="story-hero">
+      <div class="story-hero-bg" style="background-image: url('{{ story.thumbnail }}')"></div>
+      <div class="container">
+        <div class="story-header">
+          <div class="story-cover">
+            <img src="{{ story.thumbnail }}" alt="{{ story.title }}"
+              onerror="this.src='https://via.placeholder.com/200x280?text=No+Image'">
+          </div>
+          <div class="story-meta">
+            <h1 class="story-title">{{ story.title }}</h1>
+
+            {% if story.author %}
+            <div class="story-author">
+              <span class="meta-icon">✍️</span>
+              <span>{{ story.author }}</span>
+            </div>
+            {% endif %}
+
+            {% if story.genres %}
+            <div class="story-genres">
+              {% for genre in story.genres %}
+              <span class="genre-tag">{{ genre }}</span>
+              {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="story-stats">
+              <div class="stat-item">
+                <span class="stat-value">{{ story.total_chapters }}</span>
+                <span class="stat-label">Chapters</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-value">HD</span>
+                <span class="stat-label">Chất lượng</span>
+              </div>
+            </div>
+
+            {% if story.description %}
+            <p class="story-description">{{ story.description }}</p>
+            {% endif %}
+
+            <div class="story-actions">
+              {% if story.chapters %}
+              <a href="/reader/{{ story.id }}/{{ story.chapters[-1].id }}" class="btn btn-primary btn-lg">
+                📖 Đọc từ đầu
+              </a>
+              <a href="/reader/{{ story.id }}/{{ story.chapters[0].id }}" class="btn btn-outline btn-lg">
+                🚀 Chap mới nhất
+              </a>
+              {% endif %}
+              <button id="refreshChapters" class="btn btn-ghost">
+                🔄 Cập nhật chapters
+              </button>
+              <button id="downloadAll" class="btn btn-secondary">
+                📥 Tải toàn bộ truyện
+              </button>
+            </div>
+
+            <!-- Download Progress -->
+            <div id="downloadProgress" class="download-progress hidden">
+              <div class="progress-header">
+                <span class="progress-title">📥 Đang tải truyện...</span>
+                <span class="progress-text"><span id="downloadedCount">0</span>/<span id="totalCount">0</span>
+                  chapters</span>
+              </div>
+              <div class="progress-bar-container">
+                <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+              </div>
+              <p class="progress-note">⚠️ Quá trình tải có thể mất nhiều thời gian. Vui lòng không đóng trang.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chapter List -->
+    <div class="container">
+      <section class="chapter-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <span class="title-icon">📑</span>
+            Danh sách Chapters
+          </h2>
+          <div class="chapter-filter">
+            <button class="filter-btn active" data-order="desc">Mới nhất</button>
+            <button class="filter-btn" data-order="asc">Cũ nhất</button>
+          </div>
+        </div>
+
+        <div class="chapter-list" id="chapterList">
+          {% for chapter in story.chapters %}
+          <a href="/reader/{{ story.id }}/{{ chapter.id }}"
+            class="chapter-item {% if chapter.id in downloaded_chapters %}downloaded{% endif %}">
+            <span class="chapter-info">
+              {% if chapter.id in downloaded_chapters %}
+              <span class="download-status" title="Đã tải về">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path
+                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                </svg>
+              </span>
+              {% endif %}
+              <span class="chapter-name">{{ chapter.name }}</span>
+            </span>
+            <span class="chapter-arrow">→</span>
+          </a>
+          {% endfor %}
+        </div>
+
+        {% if not story.chapters %}
+        <div class="empty-state">
+          <div class="empty-icon">📭</div>
+          <h3>Chưa có chapter nào</h3>
+          <p>Nhấn "Cập nhật chapters" để tải danh sách</p>
+        </div>
+        {% endif %}
+      </section>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-content">
+        <p class="footer-text">
+          <a href="/">← Quay lại trang chủ</a>
+        </p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Loading Overlay -->
+  <div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="loading-content">
+      <div class="spinner"></div>
+      <p>Đang tải chapters...</p>
+    </div>
+  </div>
+
+  <script>
+    // Refresh chapters
+    document.getElementById('refreshChapters')?.addEventListener('click', async function () {
+      const overlay = document.getElementById('loadingOverlay');
+      overlay.classList.remove('hidden');
+
+      try {
+        const response = await fetch('/api/crawl/story/{{ story.id }}', { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+          alert(`✅ Đã cập nhật ${data.chapters} chapters!`);
+          window.location.reload();
+        } else {
+          alert('❌ Lỗi: ' + data.error);
+        }
+      } catch (error) {
+        alert('❌ Lỗi kết nối: ' + error.message);
+      } finally {
+        overlay.classList.add('hidden');
+      }
+    });
+
+    // Sort chapters
+    const filterBtns = document.querySelectorAll('.filter-btn');
+    const chapterList = document.getElementById('chapterList');
+
+    filterBtns.forEach(btn => {
+      btn.addEventListener('click', function () {
+        filterBtns.forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+
+        const items = Array.from(chapterList.children);
+        if (this.dataset.order === 'asc') {
+          items.reverse();
+        } else {
+          items.sort((a, b) => {
+            const aNum = parseInt(a.textContent.match(/\d+/)?.[0] || 0);
+            const bNum = parseInt(b.textContent.match(/\d+/)?.[0] || 0);
+            return bNum - aNum;
+          });
+        }
+        items.forEach(item => chapterList.appendChild(item));
+      });
+    });
+
+    // Download all chapters
+    document.getElementById('downloadAll')?.addEventListener('click', async function () {
+      const btn = this;
+      const progressDiv = document.getElementById('downloadProgress');
+      const progressBar = document.getElementById('progressBar');
+      const downloadedCount = document.getElementById('downloadedCount');
+      const totalCount = document.getElementById('totalCount');
+
+      // Xác nhận trước khi tải
+      const confirmed = confirm('⚠️ Bạn có chắc muốn tải toàn bộ {{ story.total_chapters }} chapters?\n\nQuá trình này có thể mất rất nhiều thời gian và dung lượng đĩa.');
+      if (!confirmed) return;
+
+      // Hiển thị progress
+      btn.disabled = true;
+      btn.textContent = '⏳ Đang tải...';
+      progressDiv.classList.remove('hidden');
+      totalCount.textContent = '{{ story.total_chapters }}';
+
+      try {
+        // Gọi API tải toàn bộ
+        const response = await fetch('/api/download-all/{{ story.id }}', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          progressBar.style.width = '100%';
+          downloadedCount.textContent = data.downloaded;
+
+          alert(`✅ Hoàn thành!\n\nĐã tải: ${data.downloaded}/${data.total} chapters` +
+            (data.errors.length > 0 ? `\n\nLỗi: ${data.errors.length} chapters` : ''));
+        } else {
+          alert('❌ Lỗi: ' + data.error);
+        }
+      } catch (error) {
+        alert('❌ Lỗi kết nối: ' + error.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '📥 Tải toàn bộ truyện';
+      }
+    });
+
+    // Check download status on page load
+    async function checkDownloadStatus() {
+      try {
+        const response = await fetch('/api/download-status/{{ story.id }}');
+        const data = await response.json();
+
+        if (data.downloaded > 0) {
+          const statusText = document.createElement('p');
+          statusText.className = 'download-status';
+          statusText.innerHTML = `📊 Đã tải: <strong>${data.downloaded}</strong>/${data.total} chapters (${data.percentage}%)`;
+          document.querySelector('.story-actions')?.after(statusText);
+        }
+      } catch (e) {
+        console.log('Không thể kiểm tra trạng thái tải');
+      }
+    }
+    checkDownloadStatus();
+  </script>
+</body>
+
+</html>

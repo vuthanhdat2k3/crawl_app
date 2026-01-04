@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tìm kiếm: {{ query }} - Manga Heaven</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="header">
+        <nav class="nav container">
+            <a href="/" class="logo">
+                <span class="logo-icon">📚</span>
+                <span class="logo-text">MANGA<span class="highlight">HEAVEN</span></span>
+            </a>
+            <div class="nav-links">
+                <a href="/" class="nav-link">Trang chủ</a>
+                <a href="/search" class="nav-link active">Tìm kiếm</a>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Search Page -->
+    <main class="main container">
+        <section class="search-section">
+            <div class="search-header">
+                <h1 class="page-title">
+                    🔍 Tìm kiếm truyện
+                </h1>
+
+                <form action="/search" method="GET" class="search-form-large">
+                    <input type="text" name="q" value="{{ query }}" placeholder="Nhập tên truyện cần tìm..."
+                        class="search-input-large" autofocus>
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        🔍 Tìm kiếm
+                    </button>
+                </form>
+            </div>
+
+            {% if query %}
+            <div class="search-results-info">
+                <p>Tìm thấy <strong>{{ total }}</strong> kết quả cho "<em>{{ query }}</em>"</p>
+            </div>
+            {% endif %}
+
+            {% if results %}
+            <div class="manga-grid">
+                {% for manga in results %}
+                <article class="manga-card">
+                    <a href="/story/{{ manga.id }}" class="manga-link">
+                        <div class="manga-cover">
+                            <img src="{{ manga.thumbnail }}" alt="{{ manga.title }}" loading="lazy"
+                                onerror="this.src='https://via.placeholder.com/200x280?text=No+Image'">
+                            <div class="manga-overlay">
+                                <span class="read-btn">Xem chi tiết</span>
+                            </div>
+                        </div>
+                        <div class="manga-info">
+                            <h3 class="manga-title">{{ manga.title }}</h3>
+                        </div>
+                    </a>
+                </article>
+                {% endfor %}
+            </div>
+            {% elif query %}
+            <div class="empty-state">
+                <div class="empty-icon">🔍</div>
+                <h3>Không tìm thấy kết quả</h3>
+                <p>Thử tìm kiếm với từ khóa khác</p>
+            </div>
+            {% else %}
+            <div class="search-suggestions">
+                <h3>💡 Gợi ý tìm kiếm</h3>
+                <div class="suggestion-tags">
+                    <a href="/search?q=đồ đệ" class="suggestion-tag">Đồ đệ</a>
+                    <a href="/search?q=chuyển sinh" class="suggestion-tag">Chuyển sinh</a>
+                    <a href="/search?q=tu tiên" class="suggestion-tag">Tu tiên</a>
+                    <a href="/search?q=võ hiệp" class="suggestion-tag">Võ hiệp</a>
+                    <a href="/search?q=hồi quy" class="suggestion-tag">Hồi quy</a>
+                </div>
+            </div>
+            {% endif %}
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <p class="footer-text">
+                    <a href="/">← Quay lại trang chủ</a>
+                </p>
+            </div>
+        </div>
+    </footer>
+</body>
+
+</html>

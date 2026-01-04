@@ -1,0 +1,82 @@
+# ==================== Python ====================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ==================== Virtual Environment ====================
+venv/
+ENV/
+env/
+.venv/
+
+# ==================== IDE ====================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# ==================== OS ====================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ==================== Project Specific ====================
+# Browser profile (contains sessions/cookies)
+crawler/browser_profile/
+
+# Local data (using cloud now)
+data/
+crawler/downloads/
+web/static/covers/
+
+# Credentials - dùng environment variables thay vì hardcode
+# Nếu có file .env local, bỏ qua nó
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+logs/
+
+# Test files
+test_*.py
+*.test.py
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# ==================== Environment Variables ====================
+.env
+.env.local
+.env.production
+*.env
+
+# ==================== Railway ====================
+.railway/

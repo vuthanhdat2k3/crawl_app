@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manga Heaven - Đọc truyện tranh online</title>
+    <meta name="description" content="Đọc truyện tranh online miễn phí, cập nhật nhanh nhất">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <nav class="nav container">
+            <a href="/" class="logo">
+                <span class="logo-icon">📚</span>
+                <span class="logo-text">MANGA<span class="highlight">HEAVEN</span></span>
+            </a>
+            <div class="nav-links">
+                <a href="/" class="nav-link active">Trang chủ</a>
+                <a href="/search" class="nav-link">Tìm kiếm</a>
+            </div>
+            <div class="nav-actions">
+                <form action="/search" method="GET" class="search-form">
+                    <input type="text" name="q" placeholder="Tìm truyện..." class="search-input">
+                    <button type="submit" class="search-btn">🔍</button>
+                </form>
+                <button id="refreshBtn" class="btn btn-primary">
+                    <span class="btn-icon">🔄</span> Cập nhật
+                </button>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-bg"></div>
+        <div class="container hero-content">
+            <h1 class="hero-title">
+                Chào mừng đến với <span class="gradient-text">Manga Heaven</span>
+            </h1>
+            <p class="hero-subtitle">
+                Đọc truyện tranh online miễn phí • Cập nhật nhanh nhất • Chất lượng cao
+            </p>
+            <div class="hero-stats">
+                <div class="stat">
+                    <span class="stat-number">{{ total }}</span>
+                    <span class="stat-label">Truyện</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-number">24/7</span>
+                    <span class="stat-label">Online</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-number">HD</span>
+                    <span class="stat-label">Chất lượng</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Content -->
+    <main class="main container">
+        <!-- Section: Mới cập nhật -->
+        <section class="section">
+            <div class="section-header">
+                <h2 class="section-title">
+                    <span class="title-icon">🔥</span>
+                    Mới cập nhật
+                </h2>
+                <a href="/search" class="see-all">Xem tất cả →</a>
+            </div>
+
+            <div class="manga-grid">
+                {% for manga in mangas %}
+                <article class="manga-card" data-id="{{ manga.id }}">
+                    <a href="/story/{{ manga.id }}" class="manga-link">
+                        <div class="manga-cover">
+                            <img src="{{ manga.thumbnail }}" 
+                                 alt="{{ manga.title }}" 
+                                 loading="lazy"
+                                 onerror="this.src='https://via.placeholder.com/200x280?text=No+Image'">
+                            <div class="manga-overlay">
+                                <span class="read-btn">Đọc ngay</span>
+                            </div>
+                            {% if manga.latest_chapter %}
+                            <span class="chapter-badge">{{ manga.latest_chapter }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="manga-info">
+                            <h3 class="manga-title">{{ manga.title }}</h3>
+                        </div>
+                    </a>
+                </article>
+                {% endfor %}
+            </div>
+
+            {% if not mangas %}
+            <div class="empty-state">
+                <div class="empty-icon">📭</div>
+                <h3>Chưa có truyện nào</h3>
+                <p>Nhấn nút "Cập nhật" để tải danh sách truyện từ nguồn</p>
+                <button id="crawlBtn" class="btn btn-primary btn-lg">
+                    🔄 Tải truyện ngay
+                </button>
+            </div>
+            {% endif %}
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <span class="logo-icon">📚</span>
+                    <span>Manga Heaven</span>
+                </div>
+                <p class="footer-text">
+                    Dự án học tập • Không dùng cho mục đích thương mại
+                </p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <p>Đang cập nhật dữ liệu...</p>
+        </div>
+    </div>
+
+    <script>
+        // Refresh/Crawl functionality
+        document.getElementById('refreshBtn')?.addEventListener('click', async function() {
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.classList.remove('hidden');
+            
+            try {
+                const response = await fetch('/api/crawl/home', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(`✅ Đã cập nhật ${data.count} truyện!`);
+                    window.location.reload();
+                } else {
+                    alert('❌ Lỗi: ' + data.error);
+                }
+            } catch (error) {
+                alert('❌ Lỗi kết nối: ' + error.message);
+            } finally {
+                overlay.classList.add('hidden');
+            }
+        });
+
+        document.getElementById('crawlBtn')?.addEventListener('click', async function() {
+            document.getElementById('refreshBtn')?.click();
+        });
+
+        // Lazy load images with intersection observer
+        const lazyImages = document.querySelectorAll('img[loading="lazy"]');
+        if ('IntersectionObserver' in window) {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('loaded');
+                        observer.unobserve(entry.target);
+                    }
+                });
+            });
+            lazyImages.forEach(img => observer.observe(img));
+        }
+    </script>
+</body>
+</html>

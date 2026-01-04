@@ -1,0 +1,15 @@
+<h2>{{ chapter.name }}</h2>
+
+{% if idx > 0 %}
+<a href="/chapter/{{ idx - 1 }}">⬅ Chapter trước</a>
+{% endif %}
+
+{% if idx + 1 < story.chapters|length %}
+<a href="/chapter/{{ idx + 1 }}">Chapter sau ➡</a>
+{% endif %}
+
+<hr>
+
+{% for img in chapter.images %}
+  <img src="{{ img }}" style="width:100%; margin-bottom:12px">
+{% endfor %}

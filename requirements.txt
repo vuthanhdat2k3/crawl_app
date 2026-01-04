@@ -1,0 +1,13 @@
+# Core dependencies
+requests>=2.31.0
+beautifulsoup4>=4.12.2
+lxml>=5.1.0
+playwright>=1.42.0
+flask>=3.0.0
+
+# Cloud Storage
+pymongo>=4.5.0
+python-dotenv>=1.0.0
+
+# Production server
+gunicorn>=21.0.0

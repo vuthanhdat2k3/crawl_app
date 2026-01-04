@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lỗi - Manga Heaven</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <main class="error-page">
+        <div class="error-content">
+            <div class="error-icon">😵</div>
+            <h1 class="error-title">Đã xảy ra lỗi</h1>
+            <p class="error-message">{{ message }}</p>
+            <div class="error-actions">
+                <a href="/" class="btn btn-primary">← Về trang chủ</a>
+                <button onclick="window.history.back()" class="btn btn-outline">Quay lại</button>
+            </div>
+        </div>
+    </main>
+</body>
+
+</html>
