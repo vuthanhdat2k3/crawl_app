@@ -20,7 +20,7 @@ from crawler.flaresolverr_client import flaresolverr
 
 class MangaCrawler:
     def __init__(self):
-        self.base_url = "https://nettruyen.me.uk/"
+        self.base_url = "https://nettruyen.me.uk"
         self.user_data_dir = os.path.join(os.path.dirname(__file__), "browser_profile")
         
         # Kết nối cloud storage

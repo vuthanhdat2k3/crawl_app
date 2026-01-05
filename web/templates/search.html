@@ -17,14 +17,14 @@
                 <span class="logo-icon">📚</span>
                 <span class="logo-text hide-mobile">MANGA<span class="highlight">HEAVEN</span></span>
             </a>
-            
+
             <button class="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
-            
+
             <div class="nav-links" id="navLinks">
                 <a href="/" class="nav-link">🏠 <span>Trang chủ</span></a>
                 <a href="/search" class="nav-link active">🔍 <span>Tìm kiếm</span></a>
             </div>
-            
+
             <div class="nav-actions">
                 {% if current_user.is_authenticated %}
                 <div class="user-dropdown">
@@ -152,10 +152,6 @@
     </div>
 
     <script>
-        // ... (preserving normalizeToSlug and crawl listeners - not replacing them, target below) ...
-        
-        // Wait, I need to be careful. I'll replace from line 269 downwards, assuming structure is stable.
-    </script>
         // Hàm chuẩn hóa tên truyện thành slug
         function normalizeToSlug(text) {
             // Bảng chuyển đổi tiếng Việt
@@ -272,7 +268,7 @@
                 document.getElementById('crawlUrlBtn')?.click();
             }
         });
-        
+
         // User dropdown menu toggle & Mobile Menu
         const navLinks = document.getElementById('navLinks');
         const mobileOverlay = document.getElementById('mobileOverlay');
@@ -301,9 +297,9 @@
                 mobileOverlay.classList.toggle('show', userDropdown.classList.contains('show'));
             }
         }
-        
+
         // Click outside
-        document.addEventListener('click', function(e) {
+        document.addEventListener('click', function (e) {
             if (!e.target.closest('.user-dropdown') && userDropdown?.classList.contains('show')) {
                 userDropdown.classList.remove('show');
                 if (window.innerWidth <= 768 && !navLinks.classList.contains('show')) {
@@ -311,8 +307,8 @@
                 }
             }
         });
-        
-        mobileOverlay?.addEventListener('click', function() {
+
+        mobileOverlay?.addEventListener('click', function () {
             closeMobileMenu();
             userDropdown?.classList.remove('show');
         });
