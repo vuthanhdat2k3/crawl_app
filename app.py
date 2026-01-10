@@ -4,10 +4,23 @@ from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 
 BASE_URL = "https://nettruyen.me.uk/trang-chu"
-DATA_DIR = "data"
-USER_DATA_DIR = "crawler/browser_profile"
 
-os.makedirs(DATA_DIR, exist_ok=True)
+# Kiểm tra xem đang chạy trên Vercel (serverless) hay local
+IS_VERCEL = os.environ.get('VERCEL', False) or os.environ.get('VERCEL_ENV', False)
+
+# Trên Vercel, chỉ /tmp mới có thể ghi được
+if IS_VERCEL:
+    DATA_DIR = "/tmp/data"
+    USER_DATA_DIR = "/tmp/crawler/browser_profile"
+else:
+    DATA_DIR = "data"
+    USER_DATA_DIR = "crawler/browser_profile"
+
+# Chỉ tạo thư mục khi không chạy trong serverless context hoặc khi sử dụng /tmp
+try:
+    os.makedirs(DATA_DIR, exist_ok=True)
+except OSError:
+    pass  # Bỏ qua lỗi nếu không thể tạo thư mục
 
 def crawl_home():
     with sync_playwright() as p:
