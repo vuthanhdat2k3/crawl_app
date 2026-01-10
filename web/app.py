@@ -94,6 +94,14 @@ except Exception as e:
     crawler = None
 
 
+# Route serve static files thủ công cho Vercel
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    """Serve static files - đảm bảo hoạt động trên Vercel"""
+    from flask import send_from_directory
+    return send_from_directory(os.path.join(CURRENT_DIR, 'static'), filename)
+
+
 @app.route('/')
 @login_required
 def index():
