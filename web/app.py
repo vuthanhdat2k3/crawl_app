@@ -337,6 +337,8 @@ def api_crawl_from_url():
         if not url:
             return jsonify({"success": False, "error": "URL không được để trống"}), 400
         
+        print(f"📥 Crawl URL request: {url}")
+        
         # Lấy manga_id từ URL
         # URL dạng: https://nettruyen.me.uk/truyen-tranh/dau-la-dai-luc-5
         if '/truyen-tranh/' in url:
@@ -347,10 +349,17 @@ def api_crawl_from_url():
         if not manga_id:
             return jsonify({"success": False, "error": "Không thể xác định ID truyện từ URL"}), 400
         
+        print(f"📖 Manga ID: {manga_id}")
+        
+        # Kiểm tra crawler
+        if crawler is None:
+            return jsonify({"success": False, "error": "Crawler chưa khởi tạo"}), 500
+        
         # Crawl chi tiết truyện
         story_data = crawler.crawl_story_detail(manga_id)
         
         if story_data:
+            print(f"✅ Crawl thành công: {story_data.get('title', 'Unknown')}")
             return jsonify({
                 "success": True, 
                 "manga_id": manga_id,
@@ -358,9 +367,13 @@ def api_crawl_from_url():
                 "chapters": len(story_data.get('chapters', []))
             })
         else:
-            return jsonify({"success": False, "error": "Không thể crawl truyện này"}), 500
+            print(f"❌ Không thể crawl truyện: {manga_id}")
+            return jsonify({"success": False, "error": "Không thể crawl truyện này. CloudScraper có thể không bypass được Cloudflare."}), 500
             
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"❌ Lỗi crawl URL: {e}\n{error_trace}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 

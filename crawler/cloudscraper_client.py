@@ -22,7 +22,7 @@ class CloudScraperClient:
                     'platform': 'windows',
                     'desktop': True
                 },
-                delay=5  # Delay để tránh rate limit
+                delay=1  # Giảm delay để tránh timeout trên Vercel
             )
             
             # Thêm headers giả lập browser thật
@@ -51,27 +51,35 @@ class CloudScraperClient:
         """Kiểm tra cloudscraper có hoạt động không"""
         return self.available
     
-    def get_page(self, url, max_timeout=60):
-        """Lấy HTML của trang qua CloudScraper"""
+    def get_page(self, url, max_timeout=30, retries=2):
+        """Lấy HTML của trang qua CloudScraper với retry logic"""
         if not self.available or not self.scraper:
-            return None
+            print("⚠️ CloudScraper not available, trying to reinit...")
+            self._init_scraper()
+            if not self.available:
+                return None
         
-        try:
-            response = self.scraper.get(url, timeout=max_timeout)
-            
-            if response.status_code == 200:
-                return {
-                    "html": response.text,
-                    "cookies": response.cookies.get_dict(),
-                    "status": response.status_code
-                }
-            else:
-                print(f"⚠️ CloudScraper response: {response.status_code}")
+        for attempt in range(retries):
+            try:
+                print(f"🌐 CloudScraper attempt {attempt + 1}/{retries}: {url[:60]}...")
+                response = self.scraper.get(url, timeout=max_timeout)
                 
-        except cloudscraper.exceptions.CloudflareChallengeError as e:
-            print(f"❌ Cloudflare challenge failed: {e}")
-        except Exception as e:
-            print(f"❌ CloudScraper request failed: {e}")
+                if response.status_code == 200:
+                    print(f"✅ CloudScraper success: {len(response.text)} bytes")
+                    return {
+                        "html": response.text,
+                        "cookies": response.cookies.get_dict(),
+                        "status": response.status_code
+                    }
+                else:
+                    print(f"⚠️ CloudScraper response: {response.status_code}")
+                    
+            except cloudscraper.exceptions.CloudflareChallengeError as e:
+                print(f"❌ Cloudflare challenge failed (attempt {attempt + 1}): {e}")
+                # Reinit scraper để thử lại
+                self._init_scraper()
+            except Exception as e:
+                print(f"❌ CloudScraper request failed (attempt {attempt + 1}): {e}")
         
         return None
     
