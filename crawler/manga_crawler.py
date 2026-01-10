@@ -18,6 +18,21 @@ from database import db
 from imagekit_storage import image_storage
 from crawler.flaresolverr_client import flaresolverr
 
+# Import cloudscraper cho Vercel (không cần browser)
+try:
+    from crawler.cloudscraper_client import cloudscraper_client
+    HAS_CLOUDSCRAPER = True
+except ImportError:
+    HAS_CLOUDSCRAPER = False
+    cloudscraper_client = None
+
+# Kiểm tra Playwright có khả dụng không (không có trên Vercel)
+try:
+    from playwright.sync_api import sync_playwright
+    HAS_PLAYWRIGHT = True
+except ImportError:
+    HAS_PLAYWRIGHT = False
+
 class MangaCrawler:
     def __init__(self):
         self.base_url = "https://nettruyen.me.uk"
@@ -28,10 +43,24 @@ class MangaCrawler:
         image_storage.connect()
         print("☁️ Cloud-Only Mode: MongoDB + ImageKit")
         
-        # Kiểm tra FlareSolverr (ưu tiên dùng cả local và production)
+        # Kiểm tra các phương thức bypass Cloudflare (theo thứ tự ưu tiên)
+        # 1. FlareSolverr (tốt nhất, cần server riêng)
         self.use_flaresolverr = flaresolverr.check_connection()
         if self.use_flaresolverr:
             print("🚀 FlareSolverr Mode: Ưu tiên FlareSolverr cho tất cả requests")
+        
+        # 2. CloudScraper (cho Vercel, không cần browser)
+        self.use_cloudscraper = HAS_CLOUDSCRAPER and cloudscraper_client and cloudscraper_client.check_connection()
+        if self.use_cloudscraper and not self.use_flaresolverr:
+            print("🌐 CloudScraper Mode: Bypass Cloudflare không cần browser")
+        
+        # 3. Playwright (fallback cuối cùng, cần browser)
+        self.use_playwright = HAS_PLAYWRIGHT
+        if not self.use_flaresolverr and not self.use_cloudscraper:
+            if self.use_playwright:
+                print("🎭 Playwright Mode: Sử dụng browser headless")
+            else:
+                print("⚠️ WARNING: Không có phương thức bypass Cloudflare khả dụng!")
         
         # Session cho requests (dùng cookies từ FlareSolverr)
         self.session = requests.Session()
@@ -121,15 +150,28 @@ class MangaCrawler:
         """Crawl danh sách manga từ trang chủ - LƯU VÀO MONGODB"""
         print("🌍 Đang crawl trang chủ NetTruyen...")
         
-        # Ưu tiên FlareSolverr
+        # Thứ tự ưu tiên: FlareSolverr > CloudScraper > Playwright
+        
+        # 1. Thử FlareSolverr
         if self.use_flaresolverr:
             manga_list = self._crawl_home_via_flaresolverr(download_covers)
             if manga_list:
                 return manga_list
-            print("⚠️ FlareSolverr thất bại, thử Playwright...")
+            print("⚠️ FlareSolverr thất bại, thử CloudScraper...")
         
-        # Fallback: Playwright
-        return self._crawl_home_via_playwright(download_covers)
+        # 2. Thử CloudScraper (cho Vercel)
+        if self.use_cloudscraper:
+            manga_list = self._crawl_home_via_cloudscraper(download_covers)
+            if manga_list:
+                return manga_list
+            print("⚠️ CloudScraper thất bại, thử Playwright...")
+        
+        # 3. Fallback: Playwright
+        if self.use_playwright:
+            return self._crawl_home_via_playwright(download_covers)
+        
+        print("❌ Không có phương thức nào khả dụng để crawl!")
+        return []
     
     def _crawl_home_via_flaresolverr(self, download_covers=True):
         """Crawl trang chủ qua FlareSolverr"""
@@ -200,6 +242,108 @@ class MangaCrawler:
         print(f"☁️ Đã lưu {len(manga_list)} truyện vào MongoDB")
         
         return manga_list
+    
+    def _crawl_home_via_cloudscraper(self, download_covers=True):
+        """Crawl trang chủ qua CloudScraper (cho Vercel - không cần browser)"""
+        print("🌐 Đang crawl trang chủ qua CloudScraper...")
+        
+        result = cloudscraper_client.get_page(self.base_url)
+        if not result or not result.get("html"):
+            print("❌ CloudScraper không thể lấy được trang")
+            return None
+        
+        html = result["html"]
+        soup = BeautifulSoup(html, "lxml")
+        
+        manga_list = []
+        items = soup.select(".item")
+        
+        # Thu thập thông tin
+        manga_data = []
+        for item in items:
+            title_el = item.select_one("h3 a")
+            img_el = item.select_one("img")
+            
+            if title_el:
+                href = title_el.get('href', '')
+                manga_id = href.split('/')[-1] if href else ''
+                
+                thumbnail_original = ""
+                if img_el:
+                    thumbnail_original = img_el.get('data-original') or img_el.get('data-src') or img_el.get('src', '')
+                
+                latest_chapter = ""
+                chapter_el = item.select_one(".comic-item .chapter a") or item.select_one(".chapter a")
+                if chapter_el:
+                    latest_chapter = chapter_el.get_text(strip=True)
+                
+                manga_data.append({
+                    "id": manga_id,
+                    "title": title_el.get_text(strip=True),
+                    "url": href,
+                    "thumbnail_original": thumbnail_original,
+                    "latest_chapter": latest_chapter
+                })
+        
+        # Upload covers song song nếu cần
+        if download_covers and manga_data:
+            print(f"☁️ Upload {len(manga_data)} covers song song via CloudScraper...")
+            thumbnails = self._upload_covers_via_cloudscraper(manga_data)
+            for manga in manga_data:
+                manga["thumbnail"] = thumbnails.get(manga["id"], manga["thumbnail_original"])
+        
+        # Tạo manga_list
+        for manga in manga_data:
+            manga_list.append({
+                "id": manga["id"],
+                "title": manga["title"],
+                "url": manga["url"],
+                "thumbnail": manga.get("thumbnail", manga["thumbnail_original"]),
+                "thumbnail_original": manga["thumbnail_original"],
+                "latest_chapter": manga["latest_chapter"]
+            })
+            print(f"  ✅ {manga['title'][:40]}...")
+        
+        # Lưu vào MongoDB
+        db.save_manga_list(manga_list)
+        print(f"☁️ Đã lưu {len(manga_list)} truyện vào MongoDB (via CloudScraper)")
+        
+        return manga_list
+    
+    def _upload_covers_via_cloudscraper(self, manga_data):
+        """Upload covers sử dụng CloudScraper"""
+        results = {}
+        
+        def upload_one(manga):
+            try:
+                thumbnail_url = manga["thumbnail_original"]
+                if not thumbnail_url:
+                    return manga["id"], None
+                
+                image_bytes = cloudscraper_client.get_image(thumbnail_url, referer=self.base_url)
+                if image_bytes:
+                    url = image_storage.upload_from_bytes(
+                        image_bytes, 
+                        "manga/covers", 
+                        f"{manga['id']}.jpg"
+                    )
+                    if url:
+                        return manga["id"], url
+            except Exception as e:
+                print(f"  ⚠️ Upload cover {manga['id']} lỗi: {e}")
+            
+            return manga["id"], manga["thumbnail_original"]
+        
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = {executor.submit(upload_one, m): m["id"] for m in manga_data if m["thumbnail_original"]}
+            for future in as_completed(futures):
+                try:
+                    manga_id, thumbnail = future.result()
+                    results[manga_id] = thumbnail
+                except Exception as e:
+                    print(f"  ⚠️ Upload cover lỗi: {e}")
+        
+        return results
     
     def _upload_covers_parallel(self, manga_data):
         """Upload nhiều cover song song"""
@@ -289,15 +433,28 @@ class MangaCrawler:
         url = f"{self.base_url}/truyen-tranh/{manga_id}"
         print(f"📖 Đang crawl chi tiết truyện: {manga_id}")
         
-        # Ưu tiên dùng FlareSolverr trên production
+        # Thứ tự ưu tiên: FlareSolverr > CloudScraper > Playwright
+        
+        # 1. FlareSolverr
         if self.use_flaresolverr:
             data = self._crawl_story_via_flaresolverr(manga_id, url, download_cover)
             if data and data.get('title'):
                 return data
-            print("⚠️ FlareSolverr thất bại, thử Playwright...")
+            print("⚠️ FlareSolverr thất bại, thử CloudScraper...")
         
-        # Fallback: Sử dụng Playwright
-        return self._crawl_story_via_playwright(manga_id, url, download_cover)
+        # 2. CloudScraper (cho Vercel)
+        if self.use_cloudscraper:
+            data = self._crawl_story_via_cloudscraper(manga_id, url, download_cover)
+            if data and data.get('title'):
+                return data
+            print("⚠️ CloudScraper thất bại, thử Playwright...")
+        
+        # 3. Playwright (fallback cuối)
+        if self.use_playwright:
+            return self._crawl_story_via_playwright(manga_id, url, download_cover)
+        
+        print("❌ Không có phương thức nào khả dụng!")
+        return None
     
     def _crawl_story_via_flaresolverr(self, manga_id, url, download_cover=True):
         """Crawl story detail qua FlareSolverr"""
@@ -323,6 +480,39 @@ class MangaCrawler:
         thumbnail = thumbnail_original
         if download_cover and thumbnail_original:
             thumbnail = self.upload_cover_via_requests(manga_id, thumbnail_original)
+        
+        return self._parse_story_detail(soup, manga_id, download_cover, thumbnail, thumbnail_original)
+    
+    def _crawl_story_via_cloudscraper(self, manga_id, url, download_cover=True):
+        """Crawl story detail qua CloudScraper (cho Vercel - không cần browser)"""
+        print(f"🌐 Đang crawl story qua CloudScraper...")
+        
+        result = cloudscraper_client.get_page(url)
+        if not result or not result.get("html"):
+            print("❌ CloudScraper không thể lấy được trang")
+            return None
+        
+        html = result["html"]
+        soup = BeautifulSoup(html, "lxml")
+        
+        # Lấy và upload thumbnail qua CloudScraper
+        thumbnail_original = ""
+        thumb_el = soup.select_one(".col-image img")
+        if thumb_el:
+            thumbnail_original = thumb_el.get('data-original') or thumb_el.get('data-src') or thumb_el.get('src', '')
+        
+        thumbnail = thumbnail_original
+        if download_cover and thumbnail_original:
+            image_bytes = cloudscraper_client.get_image(thumbnail_original, referer=self.base_url)
+            if image_bytes:
+                uploaded_url = image_storage.upload_from_bytes(
+                    image_bytes, 
+                    "manga/covers", 
+                    f"{manga_id}.jpg"
+                )
+                if uploaded_url:
+                    thumbnail = uploaded_url
+                    print(f"  ☁️ Uploaded cover via CloudScraper: {manga_id}")
         
         return self._parse_story_detail(soup, manga_id, download_cover, thumbnail, thumbnail_original)
     
@@ -584,18 +774,98 @@ class MangaCrawler:
                 print(f"☁️ Đã lưu {len(urls)} URLs vào MongoDB (via FlareSolverr)")
                 return urls
             else:
-                print("⚠️ FlareSolverr thất bại, thử Playwright...")
+                print("⚠️ FlareSolverr thất bại, thử CloudScraper...")
         
-        # Fallback: Sử dụng Playwright (hoạt động tốt trên local)
-        try:
-            urls = self._download_chapter_via_playwright(manga_id, chapter_id, chapter_url)
+        # 2. CloudScraper (cho Vercel)
+        if self.use_cloudscraper:
+            urls = self._download_chapter_via_cloudscraper(manga_id, chapter_id, chapter_url)
             if urls:
                 db.save_chapter_images(manga_id, chapter_id, urls)
-                print(f"☁️ Đã lưu {len(urls)} URLs vào MongoDB")
-            return urls
-        except Exception as e:
-            print(f"❌ Lỗi Playwright: {e}")
+                print(f"☁️ Đã lưu {len(urls)} URLs vào MongoDB (via CloudScraper)")
+                return urls
+            else:
+                print("⚠️ CloudScraper thất bại, thử Playwright...")
+        
+        # 3. Fallback: Sử dụng Playwright (hoạt động tốt trên local)
+        if self.use_playwright:
+            try:
+                urls = self._download_chapter_via_playwright(manga_id, chapter_id, chapter_url)
+                if urls:
+                    db.save_chapter_images(manga_id, chapter_id, urls)
+                    print(f"☁️ Đã lưu {len(urls)} URLs vào MongoDB")
+                return urls
+            except Exception as e:
+                print(f"❌ Lỗi Playwright: {e}")
+        
+        print("❌ Không có phương thức nào khả dụng!")
+        return []
+    
+    def _download_chapter_via_cloudscraper(self, manga_id, chapter_id, chapter_url):
+        """Download chapter sử dụng CloudScraper (cho Vercel - không cần browser)"""
+        print(f"🌐 Đang download chapter qua CloudScraper...")
+        
+        result = cloudscraper_client.get_page(chapter_url)
+        if not result or not result.get("html"):
+            print("❌ CloudScraper không thể lấy được trang")
             return []
+        
+        html = result["html"]
+        soup = BeautifulSoup(html, "lxml")
+        
+        # Tìm tất cả ảnh chapter
+        imgs = soup.select(".reading-detail img, .page-chapter img, .reading img")
+        
+        if not imgs:
+            print(f"⚠️ Không tìm thấy ảnh trong chapter")
+            return []
+        
+        print(f"☁️ Tìm thấy {len(imgs)} ảnh. Download + Upload song song via CloudScraper...")
+        
+        folder_path = f"manga/{manga_id}/{chapter_id}"
+        
+        # Download và Upload song song
+        def download_and_upload(item):
+            idx, img = item
+            src = img.get("data-original") or img.get("data-src") or img.get("src")
+            if not src:
+                return None
+            if "http" not in src:
+                if src.startswith("//"):
+                    src = "https:" + src
+                else:
+                    return None
+            try:
+                # Download via CloudScraper
+                image_bytes = cloudscraper_client.get_image(src, referer=self.base_url)
+                if image_bytes:
+                    # Upload ngay sau khi download xong
+                    filename = f"{idx:03d}.jpg"
+                    url = image_storage.upload_from_bytes(image_bytes, folder_path, filename)
+                    if url:
+                        return (idx, url)
+            except Exception as e:
+                print(f"  ❌ Ảnh {idx} lỗi: {e}")
+            return None
+        
+        # Chạy song song: download + upload cùng lúc
+        urls = [None] * len(imgs)
+        completed = 0
+        
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = {executor.submit(download_and_upload, (idx, img)): idx for idx, img in enumerate(imgs)}
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    idx, url = result
+                    urls[idx] = url
+                    completed += 1
+                    print(f"  ☁️ [{completed}/{len(imgs)}] Downloaded + Uploaded")
+        
+        # Lọc bỏ None
+        urls = [url for url in urls if url]
+        print(f"✅ Hoàn thành {len(urls)}/{len(imgs)} ảnh (via CloudScraper)")
+        
+        return urls
 
     def _download_chapter_via_playwright(self, manga_id, chapter_id, chapter_url):
         """Download chapter sử dụng Playwright (fallback khi không có FlareSolverr)"""

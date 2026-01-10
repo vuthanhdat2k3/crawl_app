@@ -8,6 +8,10 @@ flask>=3.0.0
 # Cloud Storage
 pymongo>=4.5.0
 python-dotenv>=1.0.0
+imagekitio>=3.2.0
+
+# Cloudflare Bypass (for Vercel)
+cloudscraper>=1.2.71
 
 # Production server
 gunicorn>=21.0.0
